@@ -1,0 +1,11 @@
+{
+  "name": "マイレシピノート",
+  "short_name": "レシピノート",
+  "description": "自分専用のレシピ記録アプリ",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ee8a1f",
+  "lang": "ja"
+}

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ee8a1f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="マイレシピノート">
+<link rel="manifest" href="manifest.webmanifest">
+<title>マイレシピノート</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="app-header">
+  <button id="backButton" class="icon-button hidden" type="button" aria-label="戻る">‹</button>
+  <h1 id="headerTitle">マイレシピノート</h1>
+  <button id="gearButton" class="icon-button" type="button" aria-label="カテゴリ編集">⚙</button>
+</header>
+
+<main class="app-main">
+
+  <section id="categoryView" class="view">
+    <div class="home-layout">
+      <ul id="categoryList" class="category-sidebar"></ul>
+      <div class="recipe-list-pane">
+        <div id="recipeListEmpty" class="empty-message hidden">まだレシピが<br>ありません。</div>
+        <ul id="recipeList" class="recipe-list"></ul>
+      </div>
+    </div>
+    <button id="addRecipeButton" class="fab" type="button">＋ レシピを追加</button>
+  </section>
+
+  <section id="recipeDetailView" class="view hidden">
+    <div id="detailPhotoWrap" class="detail-photo-wrap hidden">
+      <img id="detailPhoto" alt="">
+    </div>
+    <div class="detail-body">
+      <h2 id="detailName"></h2>
+      <div id="detailStars" class="stars-display"></div>
+      <div class="detail-meta">
+        <span id="detailDate"></span>
+        <span id="detailTime"></span>
+      </div>
+      <div id="detailServingWrap" class="detail-section hidden">
+        <div class="detail-section-header">
+          <h3>分量</h3>
+          <select id="detailServingSelect" class="serving-select"></select>
+        </div>
+      </div>
+      <div id="detailStagesWrap" class="detail-section hidden">
+        <div id="detailStages"></div>
+      </div>
+      <div id="detailMemoWrap" class="detail-section hidden">
+        <h3>メモ</h3>
+        <p id="detailMemo" class="memo-text"></p>
+      </div>
+      <div class="detail-actions">
+        <button id="editRecipeButton" class="secondary-button" type="button">編集する</button>
+        <button id="deleteRecipeButton" class="danger-outline-button" type="button">削除する</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="categoryEditView" class="view hidden">
+    <p class="field-benefit-note">上下の矢印で並び順を変えられます。よく使うものを上にしておくと便利です。</p>
+    <ul id="categoryEditList" class="category-edit-list"></ul>
+    <div class="category-add-row">
+      <input id="newCategoryName" type="text" maxlength="20" placeholder="新しいカテゴリ名（例：スープレシピ）">
+      <button id="addCategoryButton" class="secondary-button" type="button">＋ 追加</button>
+    </div>
+
+    <div class="data-section">
+      <h3>データ管理</h3>
+      <p class="field-benefit-note">カテゴリ・レシピをすべてファイルに保存します。機種変更や万一のデータ消失に備えられます。</p>
+      <div class="form-actions">
+        <button id="exportButton" class="secondary-button" type="button">バックアップ</button>
+        <label class="secondary-button file-label">復元<input id="importInput" type="file" accept="application/json" class="hidden"></label>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<div id="recipeFormModal" class="modal hidden" aria-hidden="true">
+  <div class="modal-backdrop" data-close="recipeForm"></div>
+  <div class="modal-card">
+    <div class="modal-heading"><h2 id="recipeFormTitle">レシピを追加</h2><button class="icon-button" data-close="recipeForm" type="button">×</button></div>
+    <form id="recipeForm">
+      <input type="hidden" id="recipeId">
+      <label for="recipeName">料理名</label>
+      <input id="recipeName" type="text" placeholder="例：基本の照り焼きダレ" required>
+
+      <label for="recipeCategory">カテゴリ</label>
+      <select id="recipeCategory"></select>
+
+      <label>写真（任意）</label>
+      <div class="photo-input-row">
+        <img id="recipePhotoPreview" class="photo-preview hidden" alt="">
+        <input id="recipePhotoInput" type="file" accept="image/*">
+        <button id="removePhotoButton" class="secondary-button small-button hidden" type="button">写真を削除</button>
+      </div>
+
+      <label>評価</label>
+      <div id="ratingPicker" class="rating-picker"></div>
+
+      <label for="recipeServingBase">この分量は</label>
+      <select id="recipeServingBase"></select>
+
+      <label>工程（材料と作り方）</label>
+      <div id="stagesContainer" class="stages-container"></div>
+      <button id="addStageButton" class="secondary-button small-button" type="button">＋ 工程を追加</button>
+
+      <label for="recipeCookedDate">作った日（任意）</label>
+      <input id="recipeCookedDate" type="date">
+
+      <label for="recipeCookTime">調理時間（任意）</label>
+      <input id="recipeCookTime" type="text" placeholder="例：15分">
+
+      <label for="recipeMemo">メモ・感想（任意）</label>
+      <textarea id="recipeMemo" rows="3" placeholder="次はもう少し甘めにしたい、など"></textarea>
+
+      <p id="recipeFormError" class="error-message"></p>
+      <div class="form-actions"><button type="button" class="secondary-button" data-close="recipeForm">キャンセル</button><button type="submit" class="primary-button">保存</button></div>
+    </form>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
