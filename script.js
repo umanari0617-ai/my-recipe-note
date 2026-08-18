@@ -1,6 +1,10 @@
 const KEY="myRecipeNoteV1";
 const $=id=>document.getElementById(id);
 
+const SERVING_OPTIONS=["1人前","5人前","10人前","1回分","1.5回分","2回分"];
+const SERVING_MULT={"1人前":1,"5人前":5,"10人前":10,"1回分":1,"1.5回分":1.5,"2回分":2};
+const backTargets={recipeDetailView:"categoryView",categoryEditView:"categoryView"};
+
 let state=load();
 let currentCategoryId=null;
 let currentRecipeId=null;
@@ -8,11 +12,6 @@ let currentView="categoryView";
 let formRating=0;
 let formPhoto="";
 let formStages=[];
-
-const SERVING_OPTIONS=["1人前","5人前","10人前","1回分","1.5回分","2回分"];
-const SERVING_MULT={"1人前":1,"5人前":5,"10人前":10,"1回分":1,"1.5回分":1.5,"2回分":2};
-
-const backTargets={recipeDetailView:"categoryView",categoryEditView:"categoryView"};
 
 function defaultState(){
   return{
@@ -29,11 +28,25 @@ function defaultState(){
   };
 }
 function load(){
+  const raw=localStorage.getItem(KEY);
+  if(!raw)return defaultState();
   try{
-    const x=JSON.parse(localStorage.getItem(KEY));
-    if(x&&Array.isArray(x.categories)&&Array.isArray(x.recipes)){migrateRecipes(x);return x;}
+    const x=JSON.parse(raw);
+    if(x&&Array.isArray(x.categories)&&Array.isArray(x.recipes)){
+      migrateRecipes(x);
+      return x;
+    }
+    saveBrokenCopy(raw);
+    alert("保存されていたデータの形式が読み取れませんでした。元のデータは別名で端末内に残していますが、開発者にご連絡ください。");
     return defaultState();
-  }catch{return defaultState();}
+  }catch(e){
+    saveBrokenCopy(raw);
+    alert("保存データの読み込み中にエラーが発生しました。元のデータは別名で端末内に残していますが、開発者にご連絡ください。\nエラー内容："+(e&&e.message?e.message:e));
+    return defaultState();
+  }
+}
+function saveBrokenCopy(raw){
+  try{localStorage.setItem(KEY+"_broken_"+Date.now(),raw);}catch{}
 }
 function migrateRecipes(x){
   x.recipes.forEach(r=>{
@@ -58,7 +71,13 @@ function migrateRecipes(x){
     delete r.steps;
   });
 }
-function save(){localStorage.setItem(KEY,JSON.stringify(state));}
+function save(){
+  try{
+    localStorage.setItem(KEY,JSON.stringify(state));
+  }catch(e){
+    alert("データの保存に失敗しました。空き容量が足りない可能性があります。写真の枚数を減らすか、不要なレシピを削除してから、もう一度お試しください。\nエラー内容："+(e&&e.message?e.message:e));
+  }
+}
 function id(){return crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2);}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
