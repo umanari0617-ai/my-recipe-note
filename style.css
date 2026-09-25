@@ -1,11 +1,11 @@
 :root{
-  --accent:#ee8a1f;
-  --accent-dark:#c96f12;
-  --text:#1a1a1a;
-  --muted:#8a8a8a;
-  --border:#ececec;
-  --bg:#ffffff;
-  --bg-soft:#faf8f6;
+  --accent:#985126;
+  --accent-dark:#783c19;
+  --text:#302e28;
+  --muted:#68675e;
+  --border:#dfded6;
+  --bg:#f7f5f0;
+  --bg-soft:#eeece5;
   --danger:#c0392b;
 }
 *{box-sizing:border-box;}
@@ -21,7 +21,7 @@ body{
 .app-header{
   position:sticky;top:0;z-index:10;
   display:flex;align-items:center;gap:8px;
-  padding:calc(env(safe-area-inset-top) + 12px) 12px 12px;
+  padding:calc(env(safe-area-inset-top) + 16px) max(14px,calc((100% - 760px)/2)) 16px;
   background:var(--bg);
   border-bottom:1px solid var(--border);
 }
@@ -29,8 +29,13 @@ body{
   flex:1;margin:0;font-size:19px;font-weight:800;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
+.header-copy{flex:1;min-width:0;}
+#headerTitle:focus{outline:none;}
+.header-copy p{margin:5px 0 0;font-size:11px;color:var(--muted);line-height:1.5;}
+.app-brand-icon{flex:none;width:44px;height:44px;}
+.icon-button svg{width:23px;height:23px;}
 .icon-button{
-  width:36px;height:36px;flex:none;
+  width:44px;height:44px;flex:none;
   border:none;background:none;
   font-size:22px;color:var(--text);
   display:flex;align-items:center;justify-content:center;
@@ -39,7 +44,47 @@ body{
 .icon-button:active{background:var(--bg-soft);}
 
 .app-main{padding:12px 14px 90px;}
+body.is-home .app-main{padding:20px 14px calc(env(safe-area-inset-bottom) + 24px);}
 .view{max-width:640px;margin:0 auto;}
+
+/* dashboard home */
+.home-view{max-width:760px;}
+.home-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:1fr;gap:12px;}
+.home-card{--card-tone:#70523b;--photo-height:clamp(100px,28vw,180px);position:relative;display:flex;flex-direction:column;align-items:stretch;min-width:0;padding:0 0 36px;text-align:left;border:1px solid var(--border);border-radius:10px;overflow:hidden;cursor:pointer;color:var(--text);background:#fffefa;font-family:inherit;box-shadow:0 2px 5px rgba(40,35,25,.04);}
+.home-card-photo{display:block;width:100%;height:var(--photo-height);object-fit:cover;background:var(--bg-soft);}
+.home-card strong{display:block;font-size:clamp(15px,3.9vw,22px);line-height:1.5;font-weight:800;margin:27px 12px 4px;}
+.home-card>span:not(.home-card-icon){display:block;margin:0 12px;font-size:12px;line-height:1.6;color:var(--muted);text-wrap:balance;}
+.home-card b{position:absolute;right:12px;bottom:10px;font-size:24px;font-weight:400;line-height:1;color:var(--card-tone);}
+.home-card-icon{position:absolute;top:calc(var(--photo-height) - 20px);left:12px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;border:3px solid #fffefa;border-radius:8px;background:var(--card-tone);color:#fff;}
+.home-card-icon svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+.new-recipe-card{--card-tone:#3f5b48;}
+.prep-card{--card-tone:#985126;}
+.season-card{--card-tone:#647044;}
+.home-card:active{transform:translateY(1px);background:#f4f1e8;}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid #3f6653;outline-offset:3px;}
+@media (hover:hover){.home-card:hover{border-color:var(--card-tone);}}
+
+@media (max-width:374px){
+  .app-header{gap:5px;padding-left:10px;padding-right:10px;}
+  .app-header h1{font-size:17px;}
+  .header-copy p{font-size:10px;}
+  .app-brand-icon{width:34px;height:34px;}
+  .home-card-grid{gap:10px;}
+  .home-card strong{font-size:14px;margin-left:9px;margin-right:9px;}
+  .home-card>span:not(.home-card-icon){margin:0 9px;font-size:11px;}
+}
+.task-view{padding-top:12px;}
+.task-view h2{font-size:20px;line-height:1.5;margin:8px 0 12px;}
+.task-note{font-size:13px;line-height:1.8;color:var(--muted);}
+.task-save{display:block;width:100%;margin-top:16px;min-height:46px;}
+.task-status{min-height:24px;font-size:14px;color:#314e40;}
+#preparationText{line-height:1.9;}
+.season-step{padding:8px 0 20px;border-bottom:1px solid var(--border);}
+.season-step:last-child{border:0;}
+.season-step h2{font-size:18px;}
+.season-step h2 span{color:#985126;font-size:13px;margin-right:8px;}
+.resource-link{display:block;color:#314e40;line-height:1.7;padding:12px;background:#eeece5;border-radius:6px;font-size:14px;}
+.resource-link small{display:block;color:var(--muted);font-size:12px;}
 
 /* home: sidebar + list */
 .home-layout{display:flex;align-items:flex-start;gap:0;border-top:1px solid var(--border);}
@@ -93,6 +138,7 @@ body{
 .detail-actions{display:flex;gap:10px;margin-top:24px;}
 
 /* category edit */
+.settings-heading{font-size:18px;margin:14px 0 8px;}
 .category-edit-list{list-style:none;margin:12px 0;padding:0;}
 .category-edit-list li{
   display:flex;align-items:center;gap:8px;

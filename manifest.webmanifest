@@ -1,11 +1,12 @@
 {
-  "name": "マイレシピノート",
-  "short_name": "レシピノート",
-  "description": "自分専用のレシピ記録アプリ",
+  "name": "飲食店レシピノート",
+  "short_name": "飲食店レシピノート",
+  "description": "飲食店のレシピを、もっと使いやすく",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ee8a1f",
+  "background_color": "#f7f5f0",
+  "theme_color": "#f7f5f0",
+  "icons": [{"src":"assets/app-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}],
   "lang": "ja"
 }

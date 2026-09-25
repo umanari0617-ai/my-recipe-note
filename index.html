@@ -3,24 +3,99 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#ee8a1f">
+<meta name="theme-color" content="#f7f5f0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="マイレシピノート">
+<meta name="apple-mobile-web-app-title" content="飲食店レシピノート">
 <link rel="manifest" href="manifest.webmanifest">
-<title>マイレシピノート</title>
+<title>飲食店レシピノート</title>
+<link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="app-header">
   <button id="backButton" class="icon-button hidden" type="button" aria-label="戻る">‹</button>
-  <h1 id="headerTitle">マイレシピノート</h1>
-  <button id="gearButton" class="icon-button" type="button" aria-label="カテゴリ編集">⚙</button>
+  <img id="appBrandIcon" class="app-brand-icon" src="assets/app-icon.svg" width="44" height="44" alt="">
+  <div class="header-copy">
+    <h1 id="headerTitle" tabindex="-1">飲食店レシピノート</h1>
+    <p id="headerTagline">飲食店のレシピを、もっと使いやすく</p>
+  </div>
+  <button id="gearButton" class="icon-button" type="button" aria-label="設定" title="設定">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m9 3-.7 2.4-2 .9-2.3-.6-2 3.4 1.7 1.8v2.2L2 14.9l2 3.4 2.3-.6 2 .9L9 21h6l.7-2.4 2-.9 2.3.6 2-3.4-1.7-1.8v-2.2L22 9.1l-2-3.4-2.3.6-2-.9L15 3Z"/><circle cx="12" cy="12" r="3.2"/></svg>
+  </button>
 </header>
 
 <main class="app-main">
 
-  <section id="categoryView" class="view">
+  <section id="homeView" class="view home-view">
+    <div class="home-card-grid">
+      <button class="home-card recipe-card" data-home-action="recipes" type="button">
+        <img class="home-card-photo" src="assets/recipes.jpg" alt="" width="640" height="400">
+        <span class="home-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v15M3 4c4-1 6 0 9 2 3-2 5-3 9-2v14c-4-1-6 0-9 2-3-2-5-3-9-2Z"/></svg></span>
+        <strong>レシピ一覧</strong>
+        <span>レシピを探す・見る</span>
+        <b aria-hidden="true">›</b>
+      </button>
+      <button class="home-card new-recipe-card" data-home-action="new" type="button">
+        <img class="home-card-photo" src="assets/new-recipe.jpg" alt="" width="640" height="400">
+        <span class="home-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></span>
+        <strong>新規レシピ登録</strong>
+        <span>新しいレシピを作成する</span>
+        <b aria-hidden="true">›</b>
+      </button>
+      <button class="home-card prep-card" data-home-action="preparation" type="button">
+        <img class="home-card-photo" src="assets/preparation.jpg" alt="" width="640" height="400">
+        <span class="home-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18m-14 5h3m4 0h3"/></svg></span>
+        <strong>今日の仕込み</strong>
+        <span>今日の仕込みを記入</span>
+        <b aria-hidden="true">›</b>
+      </button>
+      <button class="home-card season-card" data-home-action="season" type="button">
+        <img class="home-card-photo" src="assets/season.jpg" alt="" width="640" height="400">
+        <span class="home-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20 3C8 2 3 7 5 14c2 6 14 7 15-11ZM4 21 16 8m-8 9v-6m0 6h6"/></svg></span>
+        <strong>季節の食材を検索</strong>
+        <span>旬の食材からレシピを探す</span>
+        <b aria-hidden="true">›</b>
+      </button>
+    </div>
+  </section>
+
+  <section id="preparationView" class="view task-view hidden" aria-label="今日の仕込み">
+    <h2><time id="preparationDate"></time></h2>
+    <p class="task-note">仕込み名を1行ずつ入力してください。保存後も当日中は編集できます。</p>
+    <form id="preparationForm">
+      <label for="preparationText">今日の仕込み</label>
+      <textarea id="preparationText" rows="9" placeholder="鶏南蛮&#10;ポテトサラダ&#10;牛すじ&#10;ランチ用だし" aria-describedby="preparationPolicy"></textarea>
+      <p id="preparationPolicy" class="task-note">当日分のみ保存します。日付が変わると空欄になり、過去の履歴は残りません。</p>
+      <button class="primary-button task-save" type="submit">保存</button>
+      <p id="preparationStatus" class="task-status" role="status" aria-live="polite"></p>
+    </form>
+  </section>
+
+  <section id="seasonView" class="view task-view hidden" aria-label="季節の食材を検索">
+    <div class="season-step">
+      <h2><span>01</span> 旬の食材を知る</h2>
+      <p class="task-note">野菜・果物・魚の旬を確認して、使いたい食材を選びます。旬の時期は産地によって異なります。</p>
+      <a class="resource-link" href="https://www.maff.go.jp/tohoku/monosiritai/syokutaku/tabemono.html" target="_blank" rel="noopener noreferrer">農林水産省の旬の食べ物を見る ↗<small>東北地方の目安・別タブで開きます</small></a>
+    </div>
+    <div class="season-step">
+      <h2><span>02</span> その食材のレシピを検索</h2>
+      <form id="seasonSearchForm" action="https://www.google.com/search" method="get" target="_blank" rel="noopener noreferrer">
+        <label for="seasonIngredient">食材名</label>
+        <input id="seasonIngredient" type="text" placeholder="例：さんま、なす、栗" maxlength="80" required>
+        <input id="seasonSearchQuery" type="hidden" name="q">
+        <button class="secondary-button task-save" type="submit">Webでレシピを検索 ↗</button>
+        <p class="task-note">検索結果は別タブで開きます。</p>
+      </form>
+    </div>
+    <div class="season-step">
+      <h2><span>03</span> レシピを登録する</h2>
+      <p class="task-note">見つけたレシピを入力するか、画像を添付して保存します。</p>
+      <button id="seasonRegisterButton" class="primary-button task-save" type="button">レシピ登録へ進む →</button>
+    </div>
+  </section>
+
+  <section id="categoryView" class="view hidden">
     <div class="home-layout">
       <ul id="categoryList" class="category-sidebar"></ul>
       <div class="recipe-list-pane">
@@ -63,6 +138,7 @@
   </section>
 
   <section id="categoryEditView" class="view hidden">
+    <h2 class="settings-heading">カテゴリ管理</h2>
     <p class="field-benefit-note">上下の矢印で並び順を変えられます。よく使うものを上にしておくと便利です。</p>
     <ul id="categoryEditList" class="category-edit-list"></ul>
     <div class="category-add-row">

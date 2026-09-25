@@ -1,14 +1,17 @@
 const KEY="myRecipeNoteV1";
+const PREPARATION_KEY="restaurantRecipeNoteTodayV1";
 const $=id=>document.getElementById(id);
 
 const SERVING_OPTIONS=["1人前","5人前","10人前","1回分","1.5回分","2回分"];
 const SERVING_MULT={"1人前":1,"5人前":5,"10人前":10,"1回分":1,"1.5回分":1.5,"2回分":2};
-const backTargets={recipeDetailView:"categoryView",categoryEditView:"categoryView"};
+const backTargets={categoryView:"homeView",recipeDetailView:"categoryView",categoryEditView:"homeView",preparationView:"homeView",seasonView:"homeView"};
+let preparationDay="";
+let preparationTimer;
 
 let state=load();
 let currentCategoryId=null;
 let currentRecipeId=null;
-let currentView="categoryView";
+let currentView="homeView";
 let formRating=0;
 let formPhoto="";
 let formStages=[];
@@ -128,16 +131,64 @@ function setupAutocomplete(input,listEl,historyArr,onChange){
 
 function init(){
   bind();
+  refreshPreparationDay();
+  schedulePreparationReset();
   renderCategoryList();
-  showView("categoryView");
+  showView("homeView");
 }
 
 function bind(){
+  document.querySelectorAll("[data-home-action]").forEach(card=>{
+    card.onclick=()=>{
+      const action=card.dataset.homeAction;
+      if(action==="recipes"){
+        renderCategoryList();
+        showView("categoryView");
+      }else if(action==="new"){
+        openRecipeForm(null);
+      }else if(action==="preparation"){
+        refreshPreparationDay();
+        showView("preparationView");
+        const input=$("preparationText");
+        input.focus();
+        input.setSelectionRange(input.value.length,input.value.length);
+      }else if(action==="season"){
+        showView("seasonView");
+      }
+    };
+  });
   $("backButton").onclick=()=>{
     const target=backTargets[currentView];
-    if(target)showView(target);
+    if(target){
+      if(target==="categoryView")renderCategoryList();
+      showView(target);
+    }
   };
-  $("gearButton").onclick=()=>{renderCategoryEditList();showView("categoryEditView");};
+  $("gearButton").onclick=()=>{
+    backTargets.categoryEditView=currentView;
+    renderCategoryEditList();showView("categoryEditView");
+  };
+  $("preparationForm").onsubmit=savePreparation;
+  $("preparationText").addEventListener("input",()=>{
+    if(!refreshPreparationDay())$("preparationStatus").textContent="未保存の変更があります。";
+  });
+  const resume=()=>{refreshPreparationDay();schedulePreparationReset();};
+  window.addEventListener("focus",resume);
+  window.addEventListener("pageshow",resume);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)resume();});
+  window.addEventListener("storage",e=>{
+    if(e.key===PREPARATION_KEY||e.key===null){preparationDay="";refreshPreparationDay();}
+  });
+  $("seasonSearchForm").onsubmit=e=>{
+    const ingredient=$("seasonIngredient").value.trim();
+    if(!ingredient){e.preventDefault();$("seasonIngredient").value="";$("seasonIngredient").reportValidity();return;}
+    $("seasonSearchQuery").value=ingredient+" レシピ";
+  };
+  $("seasonRegisterButton").onclick=()=>{
+    openRecipeForm(null);
+    const ingredient=$("seasonIngredient").value.trim();
+    if(ingredient){formStages[0].ingredients[0].name=ingredient;renderStages();}
+  };
   $("addRecipeButton").onclick=()=>openRecipeForm(null);
   $("editRecipeButton").onclick=()=>openRecipeForm(findRecipe(currentRecipeId));
   $("deleteRecipeButton").onclick=deleteCurrentRecipe;
@@ -156,11 +207,59 @@ function showView(name){
   document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));
   $(name).classList.remove("hidden");
   currentView=name;
-  $("backButton").classList.toggle("hidden",name==="categoryView");
-  $("gearButton").classList.toggle("hidden",name!=="categoryView");
-  const titles={categoryView:"マイレシピノート",recipeDetailView:(findRecipe(currentRecipeId)||{}).name||"",categoryEditView:"カテゴリを編集"};
-  $("headerTitle").textContent=titles[name]||"マイレシピノート";
+  $("backButton").classList.toggle("hidden",name==="homeView");
+  $("gearButton").classList.toggle("hidden",name!=="homeView"&&name!=="categoryView");
+  $("appBrandIcon").classList.toggle("hidden",name!=="homeView");
+  $("headerTagline").classList.toggle("hidden",name!=="homeView");
+  document.body.classList.toggle("is-home",name==="homeView");
+  const titles={homeView:"飲食店レシピノート",categoryView:"レシピ一覧",recipeDetailView:(findRecipe(currentRecipeId)||{}).name||"",categoryEditView:"設定",preparationView:"今日の仕込み",seasonView:"季節の食材を検索"};
+  $("headerTitle").textContent=titles[name]||"飲食店レシピノート";
+  $("headerTitle").focus({preventScroll:true});
   window.scrollTo(0,0);
+}
+
+/* One local-calendar-day record, separate from recipes and their backups. */
+function localDay(date=new Date()){
+  return [date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");
+}
+function refreshPreparationDay(){
+  const now=new Date(),today=localDay(now);
+  if(preparationDay===today)return false;
+  const changed=!!preparationDay;
+  preparationDay=today;
+  $("preparationDate").dateTime=today;
+  $("preparationDate").textContent=new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"long"}).format(now);
+  $("preparationText").value="";
+  $("preparationStatus").textContent=changed?"日付が変わりました。今日の仕込みを入力してください。":"";
+  try{
+    const raw=localStorage.getItem(PREPARATION_KEY);
+    if(raw){
+      let record;
+      try{record=JSON.parse(raw);}catch{}
+      if(record?.date===today&&typeof record.text==="string")$("preparationText").value=record.text;
+      else localStorage.removeItem(PREPARATION_KEY);
+    }
+  }catch{
+    $("preparationStatus").textContent="端末の保存領域を利用できません。ブラウザの設定をご確認ください。";
+  }
+  return changed;
+}
+function schedulePreparationReset(){
+  clearTimeout(preparationTimer);
+  const now=new Date();
+  const midnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+  preparationTimer=setTimeout(()=>{refreshPreparationDay();schedulePreparationReset();},midnight-now+50);
+}
+function savePreparation(e){
+  e.preventDefault();
+  // Do not save yesterday's draft under today's date after a suspended tab resumes.
+  if(refreshPreparationDay())return;
+  try{
+    localStorage.setItem(PREPARATION_KEY,JSON.stringify({date:preparationDay,text:$("preparationText").value}));
+    $("preparationStatus").textContent="保存しました。当日中は編集できます。";
+  }catch{
+    $("preparationStatus").textContent="保存できませんでした。端末の空き容量やブラウザの設定を確認し、もう一度保存してください。";
+  }
 }
 
 function categoryName(catId){return state.categories.find(c=>c.id===catId)?.name||"";}
@@ -315,7 +414,7 @@ function exportBackup(){
   const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
-  a.download=`マイレシピノート_バックアップ_${new Date().toISOString().slice(0,10)}.json`;
+  a.download=`飲食店レシピノート_バックアップ_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -513,10 +612,12 @@ function saveRecipeForm(e){
 /* ---------- modal ---------- */
 function openModal(name){
   $(name+"Modal").classList.remove("hidden");
+  $(name+"Modal").setAttribute("aria-hidden","false");
   document.body.classList.add("modal-open");
 }
 function closeModal(name){
   $(name+"Modal").classList.add("hidden");
+  $(name+"Modal").setAttribute("aria-hidden","true");
   document.body.classList.remove("modal-open");
 }
 
