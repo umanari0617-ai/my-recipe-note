@@ -1,11 +1,14 @@
 const KEY="myRecipeNoteV1";
-const PREPARATION_KEY="restaurantRecipeNoteTodayV1";
+const PREPARATION_KEY="todayPrepMemo";
+const LEGACY_PREPARATION_KEY="restaurantRecipeNoteTodayV1";
 const $=id=>document.getElementById(id);
 
 const SERVING_MULT={"1人前":1,"5人前":5,"10人前":10,"1回分":1,"1.5回分":1.5,"2回分":2};
 const backTargets={categoryView:"homeView",recipeDetailView:"categoryView",categoryEditView:"categoryView",settingsView:"homeView",supportView:"settingsView",preparationView:"homeView",seasonView:"homeView"};
 let preparationDay="";
 let preparationTimer;
+let preparationDirty=false;
+let appInitialized=false;
 
 let state=load();
 let currentCategoryId=null;
@@ -14,11 +17,10 @@ let currentView="homeView";
 const MONTHS=Array.from({length:12},(_,i)=>String(i+1));
 const SEASONS=["春","夏","秋","冬"];
 const UNITS=["","g","kg","ml","L","個","本","枚","人前","回分","袋","束","大さじ","小さじ","少々","適量"];
-const YIELD_UNITS=["人前","回分","g","kg","ml","L","個","本","枚"];
-let selectedMonth="",selectedSeason="";
+const YIELD_UNITS=["人前","回分","バット","鍋","ボウル","個","本","kg","g","L","ml"];
+let selectedMonths=[],selectedSeasons=[];
 let formAttachments=[];
 let imageJobs=0,formSession=0;
-let prepRows=[];
 let prepFeedbackTimer;
 let modalReturnFocus;
 let formPhoto="";
@@ -134,9 +136,12 @@ function setupAutocomplete(input,listEl,historyArr,onChange){
 }
 
 function init(){
+  if(appInitialized)return;
+  appInitialized=true;
   bind();
-  refreshPreparationDay();
-  schedulePreparationReset();
+  loadPreparationMemo();
+  refreshPreparationDate();
+  schedulePreparationDate();
   renderCategoryList();
   showView("homeView");
 }
@@ -151,9 +156,9 @@ function bind(){
       }else if(action==="new"){
         openRecipeForm(null);
       }else if(action==="preparation"){
-        refreshPreparationDay();
+        refreshPreparationDate();
         showView("preparationView");
-        const input=$("preparationRows").querySelector(".prep-name");
+        const input=$("preparationText");
         input.focus();
         input.setSelectionRange(input.value.length,input.value.length);
       }else if(action==="season"){
@@ -173,21 +178,30 @@ function bind(){
     showView("settingsView");
   };
   $("preparationForm").onsubmit=savePreparation;
-  $("addPreparationRow").onclick=()=>{if(refreshPreparationDay())return;prepRows.push({name:"",quantity:"",unit:""});renderPrepRows();$("preparationRows").lastElementChild.querySelector("input").focus();prepDirty();};
+  $("preparationText").oninput=prepDirty;
+  $("deletePreparationButton").onclick=()=>$("deletePreparationDialog").showModal();
+  $("cancelPreparationDelete").onclick=()=>$("deletePreparationDialog").close();
+  $("confirmPreparationDelete").onclick=deletePreparationMemo;
+  $("recipeYieldUnit").onchange=syncYieldCustom;
+  bindFilterControls();
   $("manageCategories").onclick=()=>{renderCategoryEditList();showView("categoryEditView");};
   $("openSupport").onclick=()=>showView("supportView");
   document.querySelectorAll("[data-import-recipe]").forEach(b=>b.onclick=()=>{openRecipeForm(null);const target=b.dataset.importRecipe==="images"?$("recipeAttachmentsInput"):$("recipeSourceText");target.focus();target.scrollIntoView({block:"center"});});
   $("recipeSearch").oninput=renderRecipeList;
-  $("clearRecipeFilters").onclick=()=>{selectedMonth="";selectedSeason="";currentCategoryId=null;$("recipeSearch").value="";renderFilters();renderCategoryList();};
+  $("clearRecipeFilters").onclick=()=>{selectedMonths=[];selectedSeasons=[];currentCategoryId=null;$("recipeSearch").value="";renderFilters();renderCategoryList();};
   $("recipeAttachmentsInput").onchange=onAttachmentsChange;
   renderFilters();
   document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("recipeFormModal").classList.contains("hidden"))closeModal("recipeForm");});
-  const resume=()=>{refreshPreparationDay();schedulePreparationReset();};
+  const resume=()=>{refreshPreparationDate();schedulePreparationDate();};
   window.addEventListener("focus",resume);
   window.addEventListener("pageshow",resume);
   document.addEventListener("visibilitychange",()=>{if(!document.hidden)resume();});
   window.addEventListener("storage",e=>{
-    if(e.key===PREPARATION_KEY||e.key===null){preparationDay="";refreshPreparationDay();}
+    if(e.key===PREPARATION_KEY||e.key===null){
+      if(preparationDirty){$("preparationStatus").textContent="別の画面で保存内容が変わりました。入力中の内容は残っています。";return;}
+      $("preparationText").value=e.newValue||"";
+      $("preparationStatus").textContent="保存内容を更新しました。";
+    }
   });
   $("seasonSearchForm").onsubmit=e=>{
     const ingredient=$("seasonIngredient").value.trim();
@@ -228,58 +242,36 @@ function showView(name){
   window.scrollTo(0,0);
 }
 
-/* One local-calendar-day record, separate from recipes and their backups. */
+/* One persistent plain-text memo. Dates are presentation only; no history or snapshots. */
 function localDay(date=new Date()){
   return [date.getFullYear(),String(date.getMonth()+1).padStart(2,"0"),String(date.getDate()).padStart(2,"0")].join("-");
 }
-function refreshPreparationDay(){
+function refreshPreparationDate(){
   const now=new Date(),today=localDay(now);
-  if(preparationDay===today)return false;
-  const changed=!!preparationDay;
+  if(preparationDay===today)return;
   preparationDay=today;
   $("preparationDate").dateTime=today;
   $("preparationDate").textContent=new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"long"}).format(now);
-  prepRows=[{name:"",quantity:"",unit:""}];
-  clearTimeout(prepFeedbackTimer);
-  $("preparationSaveButton").textContent="保存";
-  $("preparationStatus").textContent=changed?"日付が変わりました。今日の仕込みを入力してください。":"";
-  try{
-    const raw=localStorage.getItem(PREPARATION_KEY);
-    if(raw){
-      let record;
-      try{record=JSON.parse(raw);}catch{}
-      if(record?.date===today){
-        if(Array.isArray(record.rows))prepRows=record.rows.map(r=>({name:String(r.name||""),quantity:String(r.quantity??""),unit:String(r.unit||"")}));
-        else if(typeof record.text==="string")prepRows=record.text.split("\n").filter(Boolean).map(name=>({name,quantity:"",unit:""}));
-      }
-      else localStorage.removeItem(PREPARATION_KEY);
-    }
-  }catch{
-    $("preparationStatus").textContent="端末の保存領域を利用できません。ブラウザの設定をご確認ください。";
-  }
-  renderPrepRows();
-  return changed;
 }
-function schedulePreparationReset(){
+function schedulePreparationDate(){
   clearTimeout(preparationTimer);
-  const now=new Date();
-  const midnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
-  preparationTimer=setTimeout(()=>{refreshPreparationDay();schedulePreparationReset();},midnight-now+50);
+  const now=new Date(),midnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1);
+  preparationTimer=setTimeout(()=>{refreshPreparationDate();schedulePreparationDate();},midnight-now+50);
 }
 function savePreparation(e){
   e.preventDefault();
-  if(refreshPreparationDay())return;
-  const rows=prepRows.filter(r=>r.name.trim()||r.quantity||r.unit).map(r=>({...r,name:r.name.trim()}));
-  if(rows.some(r=>!r.name)){ $("preparationStatus").textContent="数量・単位を入力した行には仕込み名も入力してください。";return; }
+  refreshPreparationDate();
+  clearTimeout(prepFeedbackTimer);
   try{
-    localStorage.setItem(PREPARATION_KEY,JSON.stringify({date:preparationDay,rows}));
+    localStorage.setItem(PREPARATION_KEY,$("preparationText").value);
+    localStorage.removeItem(LEGACY_PREPARATION_KEY);
+    preparationDirty=false;
     $("preparationSaveButton").textContent="✓ 保存しました";
     $("preparationStatus").textContent=new Intl.DateTimeFormat("ja-JP",{hour:"2-digit",minute:"2-digit"}).format(new Date())+" 保存済み";
-    clearTimeout(prepFeedbackTimer);
     prepFeedbackTimer=setTimeout(()=>{$("preparationSaveButton").textContent="保存";},3000);
   }catch{
     $("preparationSaveButton").textContent="再度保存する";
-    $("preparationStatus").textContent="保存できませんでした。空き容量やブラウザ設定を確認してください。入力内容は残っています。";
+    $("preparationStatus").textContent="保存を完了できませんでした。入力内容は残っています。空き容量やブラウザ設定を確認してください。";
   }
 }
 
@@ -294,11 +286,13 @@ function renderCategoryList(){
     '<li><button type="button" data-id="'+esc(c.id)+'" aria-pressed="'+(c.id===(currentCategoryId||""))+'">'+esc(c.name)+'</button></li>'
   ).join("");
   $("categoryList").querySelectorAll("button").forEach(b=>b.onclick=()=>openCategory(b.dataset.id||null));
+  $("categorySummary").textContent=(currentCategoryId?categoryName(currentCategoryId):"カテゴリ")+" ▾";
   renderRecipeList();
 }
 function openCategory(catId){
   currentCategoryId=catId;
   renderCategoryList();
+  $("categoryDropdown").open=false;
 }
 
 /* ---------- recipe list ---------- */
@@ -307,7 +301,7 @@ function renderRecipeList(){
   const terms=normalize($("recipeSearch").value).trim().split(/\s+/).filter(Boolean);
   const recipes=state.recipes.filter(r=>{
     const haystack=normalize([r.name,...(r.stages||[]).flatMap(s=>s.ingredients.map(i=>i.name))].join(" "));
-    return (!currentCategoryId||r.categoryId===currentCategoryId)&&(!selectedMonth||(selectedMonth==="unset"?!(r.months||[]).length:(r.months||[]).map(String).includes(selectedMonth)))&&(!selectedSeason||(selectedSeason==="unset"?!(r.seasons||[]).length:(r.seasons||[]).includes(selectedSeason)))&&terms.every(t=>haystack.includes(t));
+    return (!currentCategoryId||r.categoryId===currentCategoryId)&&matchesTags(r.months,selectedMonths,MONTHS)&&matchesTags(r.seasons,selectedSeasons,SEASONS)&&terms.every(t=>haystack.includes(t));
   });
   $("recipeResultCount").textContent=recipes.length+"件";
   $("recipeListEmpty").textContent=state.recipes.length?"条件に合うレシピがありません。":"まだレシピがありません。";
@@ -328,7 +322,7 @@ function openRecipeDetail(rid){
   $("detailPhotoWrap").classList.toggle("hidden",!r.photo);
   if(r.photo)$("detailPhoto").src=r.photo;
   $("detailName").textContent=r.name;
-  $("detailTags").textContent=[...(r.months||[]).map(m=>m+"月"),...(r.seasons||[])].join(" ・ ");
+  $("detailTags").textContent=[...(r.months||[]).map(m=>m==="all"?"通年":m+"月"),...(r.seasons||[]).map(v=>v==="all"?"通年":v)].join(" ・ ");
   $("detailDate").textContent=r.cookedDate?`作った日：${r.cookedDate}`:"";
   $("detailTime").textContent=r.cookTime?`調理時間：${esc(r.cookTime)}`:"";
 
@@ -530,9 +524,12 @@ function openRecipeForm(recipe){
   $("recipeCategory").value=recipe?recipe.categoryId||"":currentCategoryId||"";
   const base=recipeYield(recipe||{});
   $("recipeYieldQuantity").value=base.quantity;
-  $("recipeYieldUnit").innerHTML=unitOptions(YIELD_UNITS,base.unit);
-  renderChecks("recipeMonths",MONTHS,recipe?.months||[],v=>v+"月");
-  renderChecks("recipeSeasons",SEASONS,recipe?.seasons||[],v=>v);
+  const custom=!YIELD_UNITS.includes(base.unit);
+  $("recipeYieldUnit").innerHTML=unitOptions([...YIELD_UNITS,"その他"],custom?"その他":base.unit);
+  $("recipeYieldCustom").value=custom?base.unit:"";
+  syncYieldCustom();
+  renderChecks("recipeMonths",["all",...MONTHS],recipe?.months||[],v=>v==="all"?"通年":v+"月");
+  renderChecks("recipeSeasons",["all",...SEASONS],recipe?.seasons||[],v=>v==="all"?"通年":v);
   $("recipeSourceText").value=recipe?.sourceText||"";
   formAttachments=[...(recipe?.attachments||[])];
   formSession++;imageJobs=0;setImageBusy();renderAttachments();
@@ -585,9 +582,11 @@ function saveRecipeForm(e){
   if(!name){$("recipeFormError").textContent="料理名を入力してください。";return;}
   const quantity=Number($("recipeYieldQuantity").value);
   if(!Number.isFinite(quantity)||quantity<=0){$("recipeFormError").textContent="基準量には0より大きい数を入力してください。";return;}
+  const unit=$("recipeYieldUnit").value==="その他"?$("recipeYieldCustom").value.trim():$("recipeYieldUnit").value;
+  if(!unit){$("recipeFormError").textContent="単位を入力してください。";$("recipeYieldCustom").focus();return;}
   const categoryId=$("recipeCategory").value;
   const stages=formStages.map(s=>({groupName:s.groupName.trim(),ingredients:s.ingredients.map(i=>({...parseIngredient(i),name:i.name.trim(),amount:ingredientAmount(i,1)})).filter(i=>i.name),instruction:s.instruction.trim()})).filter(s=>s.groupName||s.ingredients.length||s.instruction);
-  const data={name,categoryId,photo:formPhoto,attachments:[...formAttachments],sourceText:$("recipeSourceText").value,months:checkedValues("recipeMonths"),seasons:checkedValues("recipeSeasons"),yield:{quantity,unit:$("recipeYieldUnit").value},stages,cookedDate:$("recipeCookedDate").value,cookTime:$("recipeCookTime").value.trim(),memo:$("recipeMemo").value.trim()};
+  const data={name,categoryId,photo:formPhoto,attachments:[...formAttachments],sourceText:$("recipeSourceText").value,months:checkedValues("recipeMonths"),seasons:checkedValues("recipeSeasons"),yield:{quantity,unit},stages,cookedDate:$("recipeCookedDate").value,cookTime:$("recipeCookTime").value.trim(),memo:$("recipeMemo").value.trim()};
   const existingId=$("recipeId").value;
   const next=JSON.parse(JSON.stringify(state));
   if(existingId){const r=next.recipes.find(r=>r.id===existingId);Object.assign(r,data);delete r.rating;}
@@ -596,7 +595,7 @@ function saveRecipeForm(e){
     $("recipeFormError").textContent="保存できませんでした。入力内容は残っています。画像を減らすか、端末の空き容量を確認してください。";return;
   }
   state=next;closeModal("recipeForm");
-  currentCategoryId=categoryId||null;selectedMonth="";selectedSeason="";$("recipeSearch").value="";renderFilters();renderCategoryList();
+  currentCategoryId=categoryId||null;selectedMonths=[];selectedSeasons=[];$("recipeSearch").value="";renderFilters();renderCategoryList();
   if(existingId)openRecipeDetail(existingId);else showView("categoryView");
 }
 
@@ -644,14 +643,19 @@ function recipeYield(r){
 function unitFactor(unit){return {kg:1000,g:1,L:1000,ml:1}[unit]||1;}
 function compatibleUnits(unit){return ["g","kg"].includes(unit)?["g","kg"]:["ml","L"].includes(unit)?["ml","L"]:[unit];}
 function renderChecks(id,values,selected,label){
-  $(id).innerHTML=values.map(v=>'<label><input type="checkbox" value="'+esc(v)+'"'+(selected.map(String).includes(v)?' checked':'')+'><span>'+label(v)+'</span></label>').join("");
+  const normalized=selected.map(String).includes("all")?["all"]:selected.map(String);
+  $(id).innerHTML=values.map(v=>'<label><input type="checkbox" value="'+esc(v)+'"'+(normalized.includes(v)?' checked':'')+'><span>'+label(v)+'</span></label>').join("");
+  $(id).onchange=e=>{
+    if(e.target.type!=="checkbox"||!e.target.checked)return;
+    $(id).querySelectorAll("input").forEach(input=>{if(input!==e.target&&(e.target.value==="all"||input.value==="all"))input.checked=false;});
+  };
 }
 function checkedValues(id){return [...$(id).querySelectorAll("input:checked")].map(i=>i.value);}
 function renderFilters(){
-  [["monthFilters",MONTHS,selectedMonth,v=>v+"月"],["seasonFilters",SEASONS,selectedSeason,v=>v]].forEach(([id,values,selected,label])=>{
-    $(id).innerHTML=["",...values,"unset"].map(v=>'<button type="button" data-value="'+v+'" aria-pressed="'+(selected===v)+'">'+(v===""?"すべて":v==="unset"?"未設定":label(v))+'</button>').join("");
-    $(id).querySelectorAll("button").forEach(b=>b.onclick=()=>{if(id==="monthFilters")selectedMonth=b.dataset.value;else selectedSeason=b.dataset.value;renderFilters();renderRecipeList();});
+  [["monthFilters",MONTHS,selectedMonths,v=>v+"月"],["seasonFilters",SEASONS,selectedSeasons,v=>v]].forEach(([id,values,selected,label])=>{
+    $(id).innerHTML=["all",...values,"unset"].map(v=>'<label><input type="checkbox" value="'+v+'"'+(selected.includes(v)?' checked':'')+'><span>'+(v==="all"?"通年":v==="unset"?"未設定":label(v))+'</span></label>').join("");
   });
+  updateFilterSummaries();
 }
 function renderAttachments(){
   $("recipeAttachmentsPreview").innerHTML=formAttachments.map((src,i)=>'<div><img src="'+esc(src)+'" alt="添付画像 '+(i+1)+'"><button type="button" class="secondary-button" data-remove="'+i+'">画像 '+(i+1)+' を削除</button></div>').join("");
@@ -674,22 +678,84 @@ async function onAttachmentsChange(e){
   finally{if(session===formSession){imageJobs--;setImageBusy();e.target.value="";}}
 }
 function prepDirty(){
+  preparationDirty=true;
   clearTimeout(prepFeedbackTimer);$("preparationSaveButton").textContent="保存";$("preparationStatus").textContent="未保存の変更があります。";
 }
-function renderPrepRows(){
-  if(!prepRows.length)prepRows=[{name:"",quantity:"",unit:""}];
-  $("preparationRows").innerHTML=prepRows.map((r,i)=>'<div class="prep-row"><input class="prep-name" type="text" aria-label="仕込み名 '+(i+1)+'" placeholder="仕込み名" value="'+esc(r.name)+'"><input class="prep-quantity" type="number" inputmode="decimal" min="0" step="any" aria-label="数量 '+(i+1)+'" placeholder="数量" value="'+esc(r.quantity)+'"><select class="prep-unit" aria-label="単位 '+(i+1)+'">'+unitOptions(UNITS,r.unit)+'</select><button type="button" class="remove-row" aria-label="仕込み行 '+(i+1)+' を削除">×</button></div>').join("");
-  $("preparationRows").querySelectorAll(".prep-row").forEach((row,i)=>{
-    [[".prep-name","name"],[".prep-quantity","quantity"],[".prep-unit","unit"]].forEach(([selector,key])=>row.querySelector(selector).addEventListener("input",e=>{if(refreshPreparationDay())return;prepRows[i][key]=e.target.value;prepDirty();}));
-    row.querySelector("button").onclick=()=>{if(refreshPreparationDay())return;prepRows.splice(i,1);renderPrepRows();prepDirty();};
-    row.querySelector(".prep-name").onkeydown=e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();if(refreshPreparationDay())return;if(i===prepRows.length-1)prepRows.push({name:"",quantity:"",unit:""});renderPrepRows();$("preparationRows").children[i+1].querySelector("input").focus();prepDirty();}};
-    row.querySelector(".prep-name").onpaste=e=>{
-      const text=e.clipboardData.getData("text");if(!/[\r\n]/.test(text))return;e.preventDefault();if(refreshPreparationDay())return;
-      const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);if(!lines.length)return;
-      const input=e.target,prefix=input.value.slice(0,input.selectionStart),suffix=input.value.slice(input.selectionEnd);
-      lines[0]=prefix+lines[0];lines[lines.length-1]+=suffix;
-      prepRows.splice(i,1,...lines.map((name,n)=>({name,quantity:n===0?prepRows[i].quantity:"",unit:n===0?prepRows[i].unit:""})));renderPrepRows();prepDirty();
+
+function loadPreparationMemo(){
+  try{
+    const current=localStorage.getItem(PREPARATION_KEY);
+    if(current!==null){$("preparationText").value=current;localStorage.removeItem(LEGACY_PREPARATION_KEY);return;}
+    const old=localStorage.getItem(LEGACY_PREPARATION_KEY);
+    if(old===null)return;
+    const record=JSON.parse(old);
+    let text;
+    if(typeof record.text==="string")text=record.text;
+    else if(Array.isArray(record.rows))text=record.rows.map(row=>[String(row.name||""),[String(row.quantity??""),String(row.unit||"")].join("")].filter(Boolean).join(" ")).join("\n");
+    else throw new Error("Unknown legacy memo");
+    $("preparationText").value=text;
+    // Remove the old record only after the new single-string value is safely stored.
+    localStorage.setItem(PREPARATION_KEY,text);
+    localStorage.removeItem(LEGACY_PREPARATION_KEY);
+  }catch{
+    $("preparationStatus").textContent="保存データの読み込み・移行を完了できませんでした。元のデータは削除していません。入力内容を確認して保存してください。";
+  }
+}
+function deletePreparationMemo(){
+  clearTimeout(prepFeedbackTimer);
+  try{
+    // Remove legacy first so a failed deletion cannot resurrect an older memo next time.
+    localStorage.removeItem(LEGACY_PREPARATION_KEY);
+    localStorage.removeItem(PREPARATION_KEY);
+    $("preparationText").value="";
+    preparationDirty=false;
+    $("preparationSaveButton").textContent="保存";
+    $("preparationStatus").textContent="仕込み内容を削除しました。";
+  }catch{
+    $("preparationStatus").textContent="削除できませんでした。入力内容は残っています。もう一度お試しください。";
+  }
+  $("deletePreparationDialog").close();
+}
+function syncYieldCustom(){
+  const custom=$("recipeYieldUnit").value==="その他";
+  $("recipeYieldCustomWrap").classList.toggle("hidden",!custom);
+  $("recipeYieldCustom").required=custom;
+  $("recipeYieldCustom").disabled=!custom;
+}
+function matchesTags(values,selected,domain){
+  if(!selected.length)return true;
+  const tags=(values||[]).map(String);
+  const allYear=tags.includes("all")||domain.every(v=>tags.includes(v));
+  return selected.some(v=>v==="unset"?tags.length===0:v==="all"?allYear:allYear||tags.includes(v));
+}
+function filterLabel(selected,domain,kind){
+  if(!selected.length)return kind;
+  if(selected.includes("all"))return "通年";
+  const ordered=[...domain,"unset"].filter(v=>selected.includes(v));
+  if(kind==="月"&&ordered.length>2&&!ordered.includes("unset"))return ordered.length+"か月選択";
+  return ordered.map(v=>v==="unset"?"未設定":kind==="月"?v+"月":v).join("・");
+}
+function updateFilterSummaries(){
+  $("monthSummary").textContent=filterLabel(selectedMonths,MONTHS,"月")+" ▾";
+  $("seasonSummary").textContent=filterLabel(selectedSeasons,SEASONS,"季節")+" ▾";
+}
+function bindFilterControls(){
+  [["monthFilters","months"],["seasonFilters","seasons"]].forEach(([id,kind])=>{
+    $(id).onchange=e=>{
+      const input=e.target;if(input.type!=="checkbox")return;
+      let selected=kind==="months"?selectedMonths:selectedSeasons;
+      if(input.checked)selected=input.value==="all"?["all"]:[...selected.filter(v=>v!=="all"&&v!==input.value),input.value];
+      else selected=selected.filter(v=>v!==input.value);
+      if(kind==="months")selectedMonths=selected;else selectedSeasons=selected;
+      $(id).querySelectorAll("input").forEach(i=>i.checked=selected.includes(i.value));
+      updateFilterSummaries();renderRecipeList();
     };
   });
+  document.querySelectorAll("[data-clear-filter]").forEach(b=>b.onclick=()=>{if(b.dataset.clearFilter==="months")selectedMonths=[];else selectedSeasons=[];renderFilters();renderRecipeList();});
+  document.querySelectorAll("[data-close-filter]").forEach(b=>b.onclick=()=>{const d=b.closest("details");d.open=false;d.querySelector("summary").focus();});
+  const dropdowns=[...document.querySelectorAll(".filter-dropdown")];
+  dropdowns.forEach(d=>d.ontoggle=()=>{if(d.open)dropdowns.forEach(other=>{if(other!==d)other.open=false;});});
+  document.addEventListener("click",e=>{if(!e.target.closest(".filter-bar"))dropdowns.forEach(d=>d.open=false);});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape")dropdowns.forEach(d=>{if(d.open){d.open=false;d.querySelector("summary").focus();}});});
 }
 init();

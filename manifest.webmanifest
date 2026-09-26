@@ -7,6 +7,13 @@
   "display": "standalone",
   "background_color": "#f7f5f0",
   "theme_color": "#f7f5f0",
-  "icons": [{"src":"assets/app-icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any"}],
+  "icons": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMzMTRlNDAiLz48ZyBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZkZjgiIHN0cm9rZS13aWR0aD0iMi42IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0zMiAxOXYzME0xMyAxN2M3LTIgMTMgMCAxOSA0IDYtNCAxMi02IDE5LTR2MjhjLTctMi0xMyAwLTE5IDQtNi00LTEyLTYtMTktNFoiLz48cGF0aCBkPSJtMTkgMjYgNyAybS03IDYgNyAybTEyLTggNy0ybS03IDEwIDctMiIvPjwvZz48L3N2Zz4K",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
   "lang": "ja"
 }
