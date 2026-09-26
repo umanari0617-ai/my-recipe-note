@@ -2,9 +2,8 @@ const KEY="myRecipeNoteV1";
 const PREPARATION_KEY="restaurantRecipeNoteTodayV1";
 const $=id=>document.getElementById(id);
 
-const SERVING_OPTIONS=["1人前","5人前","10人前","1回分","1.5回分","2回分"];
 const SERVING_MULT={"1人前":1,"5人前":5,"10人前":10,"1回分":1,"1.5回分":1.5,"2回分":2};
-const backTargets={categoryView:"homeView",recipeDetailView:"categoryView",categoryEditView:"homeView",preparationView:"homeView",seasonView:"homeView"};
+const backTargets={categoryView:"homeView",recipeDetailView:"categoryView",categoryEditView:"categoryView",settingsView:"homeView",supportView:"settingsView",preparationView:"homeView",seasonView:"homeView"};
 let preparationDay="";
 let preparationTimer;
 
@@ -12,7 +11,16 @@ let state=load();
 let currentCategoryId=null;
 let currentRecipeId=null;
 let currentView="homeView";
-let formRating=0;
+const MONTHS=Array.from({length:12},(_,i)=>String(i+1));
+const SEASONS=["春","夏","秋","冬"];
+const UNITS=["","g","kg","ml","L","個","本","枚","人前","回分","袋","束","大さじ","小さじ","少々","適量"];
+const YIELD_UNITS=["人前","回分","g","kg","ml","L","個","本","枚"];
+let selectedMonth="",selectedSeason="";
+let formAttachments=[];
+let imageJobs=0,formSession=0;
+let prepRows=[];
+let prepFeedbackTimer;
+let modalReturnFocus;
 let formPhoto="";
 let formStages=[];
 
@@ -31,7 +39,8 @@ function defaultState(){
   };
 }
 function load(){
-  const raw=localStorage.getItem(KEY);
+  let raw;
+  try{raw=localStorage.getItem(KEY);}catch{alert("ブラウザの保存領域を利用できません。保存設定をご確認ください。");return defaultState();}
   if(!raw)return defaultState();
   try{
     const x=JSON.parse(raw);
@@ -77,8 +86,11 @@ function migrateRecipes(x){
 function save(){
   try{
     localStorage.setItem(KEY,JSON.stringify(state));
+    return true;
   }catch(e){
+    state=load();
     alert("データの保存に失敗しました。空き容量が足りない可能性があります。写真の枚数を減らすか、不要なレシピを削除してから、もう一度お試しください。\nエラー内容："+(e&&e.message?e.message:e));
+    return false;
   }
 }
 function id(){return crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2);}
@@ -87,14 +99,6 @@ function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&l
 function formatNumber(n){
   const rounded=Math.round(n*100)/100;
   return Number.isInteger(rounded)?String(rounded):String(rounded);
-}
-function scaleAmountText(text,ratio){
-  if(!text)return text;
-  if(ratio===1)return text;
-  const m=text.match(/(\d+(?:\.\d+)?)/);
-  if(!m)return text;
-  const scaled=formatNumber(parseFloat(m[1])*ratio);
-  return text.slice(0,m.index)+scaled+text.slice(m.index+m[1].length);
 }
 function ingredientHistory(){
   const names=new Set(),amounts=new Set();
@@ -149,7 +153,7 @@ function bind(){
       }else if(action==="preparation"){
         refreshPreparationDay();
         showView("preparationView");
-        const input=$("preparationText");
+        const input=$("preparationRows").querySelector(".prep-name");
         input.focus();
         input.setSelectionRange(input.value.length,input.value.length);
       }else if(action==="season"){
@@ -165,13 +169,19 @@ function bind(){
     }
   };
   $("gearButton").onclick=()=>{
-    backTargets.categoryEditView=currentView;
-    renderCategoryEditList();showView("categoryEditView");
+    backTargets.settingsView=currentView;
+    showView("settingsView");
   };
   $("preparationForm").onsubmit=savePreparation;
-  $("preparationText").addEventListener("input",()=>{
-    if(!refreshPreparationDay())$("preparationStatus").textContent="未保存の変更があります。";
-  });
+  $("addPreparationRow").onclick=()=>{if(refreshPreparationDay())return;prepRows.push({name:"",quantity:"",unit:""});renderPrepRows();$("preparationRows").lastElementChild.querySelector("input").focus();prepDirty();};
+  $("manageCategories").onclick=()=>{renderCategoryEditList();showView("categoryEditView");};
+  $("openSupport").onclick=()=>showView("supportView");
+  document.querySelectorAll("[data-import-recipe]").forEach(b=>b.onclick=()=>{openRecipeForm(null);const target=b.dataset.importRecipe==="images"?$("recipeAttachmentsInput"):$("recipeSourceText");target.focus();target.scrollIntoView({block:"center"});});
+  $("recipeSearch").oninput=renderRecipeList;
+  $("clearRecipeFilters").onclick=()=>{selectedMonth="";selectedSeason="";currentCategoryId=null;$("recipeSearch").value="";renderFilters();renderCategoryList();};
+  $("recipeAttachmentsInput").onchange=onAttachmentsChange;
+  renderFilters();
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("recipeFormModal").classList.contains("hidden"))closeModal("recipeForm");});
   const resume=()=>{refreshPreparationDay();schedulePreparationReset();};
   window.addEventListener("focus",resume);
   window.addEventListener("pageshow",resume);
@@ -212,7 +222,7 @@ function showView(name){
   $("appBrandIcon").classList.toggle("hidden",name!=="homeView");
   $("headerTagline").classList.toggle("hidden",name!=="homeView");
   document.body.classList.toggle("is-home",name==="homeView");
-  const titles={homeView:"飲食店レシピノート",categoryView:"レシピ一覧",recipeDetailView:(findRecipe(currentRecipeId)||{}).name||"",categoryEditView:"設定",preparationView:"今日の仕込み",seasonView:"季節の食材を検索"};
+  const titles={homeView:"飲食店レシピノート",categoryView:"レシピ一覧",recipeDetailView:(findRecipe(currentRecipeId)||{}).name||"",categoryEditView:"カテゴリー管理",settingsView:"設定",supportView:"使い方・サポート",preparationView:"今日の仕込み",seasonView:"季節の食材を検索"};
   $("headerTitle").textContent=titles[name]||"飲食店レシピノート";
   $("headerTitle").focus({preventScroll:true});
   window.scrollTo(0,0);
@@ -229,19 +239,25 @@ function refreshPreparationDay(){
   preparationDay=today;
   $("preparationDate").dateTime=today;
   $("preparationDate").textContent=new Intl.DateTimeFormat("ja-JP",{year:"numeric",month:"long",day:"numeric",weekday:"long"}).format(now);
-  $("preparationText").value="";
+  prepRows=[{name:"",quantity:"",unit:""}];
+  clearTimeout(prepFeedbackTimer);
+  $("preparationSaveButton").textContent="保存";
   $("preparationStatus").textContent=changed?"日付が変わりました。今日の仕込みを入力してください。":"";
   try{
     const raw=localStorage.getItem(PREPARATION_KEY);
     if(raw){
       let record;
       try{record=JSON.parse(raw);}catch{}
-      if(record?.date===today&&typeof record.text==="string")$("preparationText").value=record.text;
+      if(record?.date===today){
+        if(Array.isArray(record.rows))prepRows=record.rows.map(r=>({name:String(r.name||""),quantity:String(r.quantity??""),unit:String(r.unit||"")}));
+        else if(typeof record.text==="string")prepRows=record.text.split("\n").filter(Boolean).map(name=>({name,quantity:"",unit:""}));
+      }
       else localStorage.removeItem(PREPARATION_KEY);
     }
   }catch{
     $("preparationStatus").textContent="端末の保存領域を利用できません。ブラウザの設定をご確認ください。";
   }
+  renderPrepRows();
   return changed;
 }
 function schedulePreparationReset(){
@@ -252,13 +268,18 @@ function schedulePreparationReset(){
 }
 function savePreparation(e){
   e.preventDefault();
-  // Do not save yesterday's draft under today's date after a suspended tab resumes.
   if(refreshPreparationDay())return;
+  const rows=prepRows.filter(r=>r.name.trim()||r.quantity||r.unit).map(r=>({...r,name:r.name.trim()}));
+  if(rows.some(r=>!r.name)){ $("preparationStatus").textContent="数量・単位を入力した行には仕込み名も入力してください。";return; }
   try{
-    localStorage.setItem(PREPARATION_KEY,JSON.stringify({date:preparationDay,text:$("preparationText").value}));
-    $("preparationStatus").textContent="保存しました。当日中は編集できます。";
+    localStorage.setItem(PREPARATION_KEY,JSON.stringify({date:preparationDay,rows}));
+    $("preparationSaveButton").textContent="✓ 保存しました";
+    $("preparationStatus").textContent=new Intl.DateTimeFormat("ja-JP",{hour:"2-digit",minute:"2-digit"}).format(new Date())+" 保存済み";
+    clearTimeout(prepFeedbackTimer);
+    prepFeedbackTimer=setTimeout(()=>{$("preparationSaveButton").textContent="保存";},3000);
   }catch{
-    $("preparationStatus").textContent="保存できませんでした。端末の空き容量やブラウザの設定を確認し、もう一度保存してください。";
+    $("preparationSaveButton").textContent="再度保存する";
+    $("preparationStatus").textContent="保存できませんでした。空き容量やブラウザ設定を確認してください。入力内容は残っています。";
   }
 }
 
@@ -268,22 +289,11 @@ function recipesInCategory(catId){return state.recipes.filter(r=>r.categoryId===
 
 /* ---------- category sidebar ---------- */
 function renderCategoryList(){
-  const list=$("categoryList");
-  if(!state.categories.length){
-    list.innerHTML=`<li style="border:none;color:var(--muted);">カテゴリが<br>ありません</li>`;
-    $("recipeList").innerHTML="";
-    $("recipeListEmpty").classList.add("hidden");
-    return;
-  }
-  if(!currentCategoryId||!state.categories.some(c=>c.id===currentCategoryId)){
-    currentCategoryId=state.categories[0].id;
-  }
-  list.innerHTML=state.categories.map(c=>
-    `<li data-id="${c.id}" class="${c.id===currentCategoryId?"active":""}">${esc(c.name)}</li>`
+  if(currentCategoryId&&!state.categories.some(c=>c.id===currentCategoryId))currentCategoryId=null;
+  $("categoryList").innerHTML=[{id:"",name:"すべて"},...state.categories].map(c=>
+    '<li><button type="button" data-id="'+esc(c.id)+'" aria-pressed="'+(c.id===(currentCategoryId||""))+'">'+esc(c.name)+'</button></li>'
   ).join("");
-  list.querySelectorAll("li[data-id]").forEach(li=>{
-    li.onclick=()=>openCategory(li.dataset.id);
-  });
+  $("categoryList").querySelectorAll("button").forEach(b=>b.onclick=()=>openCategory(b.dataset.id||null));
   renderRecipeList();
 }
 function openCategory(catId){
@@ -293,16 +303,21 @@ function openCategory(catId){
 
 /* ---------- recipe list ---------- */
 function renderRecipeList(){
-  const recipes=recipesInCategory(currentCategoryId);
+  const normalize=v=>String(v||"").normalize("NFKC").toLocaleLowerCase();
+  const terms=normalize($("recipeSearch").value).trim().split(/\s+/).filter(Boolean);
+  const recipes=state.recipes.filter(r=>{
+    const haystack=normalize([r.name,...(r.stages||[]).flatMap(s=>s.ingredients.map(i=>i.name))].join(" "));
+    return (!currentCategoryId||r.categoryId===currentCategoryId)&&(!selectedMonth||(selectedMonth==="unset"?!(r.months||[]).length:(r.months||[]).map(String).includes(selectedMonth)))&&(!selectedSeason||(selectedSeason==="unset"?!(r.seasons||[]).length:(r.seasons||[]).includes(selectedSeason)))&&terms.every(t=>haystack.includes(t));
+  });
+  $("recipeResultCount").textContent=recipes.length+"件";
+  $("recipeListEmpty").textContent=state.recipes.length?"条件に合うレシピがありません。":"まだレシピがありません。";
   $("recipeListEmpty").classList.toggle("hidden",recipes.length>0);
   $("recipeList").innerHTML=recipes.map(r=>{
-    const thumb=r.photo?`<img class="recipe-thumb" src="${r.photo}" alt="">`:`<div class="recipe-thumb-placeholder">🍳</div>`;
-    const stars=r.rating?"★".repeat(r.rating):"";
-    return `<li data-id="${r.id}"><div class="recipe-row-main">${thumb}<span class="recipe-name">${esc(r.name)}</span></div><span class="recipe-row-meta">${stars}</span></li>`;
+    const photo=r.photo||r.attachments?.[0];
+    const thumb=photo?'<img class="recipe-thumb" src="'+esc(photo)+'" alt="">':'<div class="recipe-thumb-placeholder" aria-hidden="true">▤</div>';
+    return '<li><button class="recipe-row-button" type="button" data-id="'+esc(r.id)+'"><span class="recipe-row-main">'+thumb+'<span class="recipe-name">'+esc(r.name)+'</span></span><span aria-hidden="true">›</span></button></li>';
   }).join("");
-  $("recipeList").querySelectorAll("li[data-id]").forEach(li=>{
-    li.onclick=()=>openRecipeDetail(li.dataset.id);
-  });
+  $("recipeList").querySelectorAll("button").forEach(b=>b.onclick=()=>openRecipeDetail(b.dataset.id));
 }
 
 /* ---------- recipe detail ---------- */
@@ -313,15 +328,17 @@ function openRecipeDetail(rid){
   $("detailPhotoWrap").classList.toggle("hidden",!r.photo);
   if(r.photo)$("detailPhoto").src=r.photo;
   $("detailName").textContent=r.name;
-  $("detailStars").textContent=r.rating?"★".repeat(r.rating)+"☆".repeat(5-r.rating):"";
+  $("detailTags").textContent=[...(r.months||[]).map(m=>m+"月"),...(r.seasons||[])].join(" ・ ");
   $("detailDate").textContent=r.cookedDate?`作った日：${r.cookedDate}`:"";
   $("detailTime").textContent=r.cookTime?`調理時間：${esc(r.cookTime)}`:"";
 
   const stages=r.stages||[];
   const hasIngredients=stages.some(s=>(s.ingredients||[]).length>0);
-  $("detailServingSelect").innerHTML=SERVING_OPTIONS.map(o=>`<option value="${o}">${o}</option>`).join("");
-  $("detailServingSelect").value=r.servingBase||"1人前";
-  $("detailServingSelect").onchange=()=>renderDetailStages(r);
+  const base=recipeYield(r);
+  $("detailYieldQuantity").value=base.quantity;
+  $("detailYieldUnit").innerHTML=unitOptions(compatibleUnits(base.unit),base.unit);
+  $("detailYieldQuantity").oninput=()=>renderDetailStages(r);
+  $("detailYieldUnit").onchange=()=>renderDetailStages(r);
   $("detailServingWrap").classList.toggle("hidden",!hasIngredients);
 
   $("detailStagesWrap").classList.toggle("hidden",!stages.length);
@@ -329,16 +346,21 @@ function openRecipeDetail(rid){
 
   $("detailMemoWrap").classList.toggle("hidden",!r.memo);
   $("detailMemo").textContent=r.memo||"";
+  $("detailSourceWrap").classList.toggle("hidden",!r.sourceText&&!r.attachments?.length);
+  $("detailSourceText").textContent=r.sourceText||"";
+  $("detailAttachments").innerHTML=(r.attachments||[]).map((src,i)=>'<a href="'+esc(src)+'" download="レシピ画像-'+(i+1)+'.jpg"><img src="'+esc(src)+'" alt="添付レシピ '+(i+1)+'"><span>画像を保存</span></a>').join("");
   showView("recipeDetailView");
 }
 function renderDetailStages(r){
-  const target=$("detailServingSelect").value;
-  const ratio=SERVING_MULT[target]/SERVING_MULT[r.servingBase||"1人前"];
+  const base=recipeYield(r),target=Number($("detailYieldQuantity").value);
+  const valid=Number.isFinite(target)&&target>0;
+  const ratio=valid?target*unitFactor($("detailYieldUnit").value)/(base.quantity*unitFactor(base.unit)):1;
+  $("detailYieldNote").textContent="基準："+base.quantity+base.unit+(valid?" ／ "+formatNumber(ratio)+"倍":" ／ 0より大きい必要量を入力してください（基準量を表示中）");
   const stages=r.stages||[];
   $("detailStages").innerHTML=stages.map(stage=>{
     const nameHtml=stage.groupName?`<div class="detail-stage-name">${esc(stage.groupName)}</div>`:"";
     const ingHtml=stage.ingredients.length?`<h4>材料</h4><ul class="plain-list">${stage.ingredients.map(i=>{
-      const amount=scaleAmountText(i.amount,ratio);
+      const amount=ingredientAmount(i,ratio);
       return `<li>${esc(i.name)}${amount?`　${esc(amount)}`:""}</li>`;
     }).join("")}</ul>`:"";
     const steps=(stage.instruction||"").split("\n").map(s=>s.trim()).filter(Boolean);
@@ -429,7 +451,7 @@ function importBackup(e){
       if(!confirm("現在のデータを、バックアップファイルの内容に置き換えますか？\nこの操作は取り消せません。"))return;
       migrateRecipes(x);
       state=x;
-      save();
+      if(!save())return;
       currentCategoryId=null;
       renderCategoryList();
       alert("復元しました。");
@@ -467,29 +489,17 @@ function renderStages(){
   });
 }
 function renderStageIngredientRows(si){
-  const {names,amounts}=ingredientHistory();
-  const stage=formStages[si];
-  const container=$("stagesContainer").querySelector(`.ingredient-rows[data-si="${si}"]`);
-  container.innerHTML=stage.ingredients.map((ing,ii)=>`
-    <div class="ingredient-row" data-ii="${ii}">
-      <div class="autocomplete-wrap">
-        <input type="text" class="name-input" placeholder="材料名（例：醤油）" value="${esc(ing.name)}" autocomplete="off">
-        <ul class="suggest-list hidden"></ul>
-      </div>
-      <div class="autocomplete-wrap amount-wrap">
-        <input type="text" class="amount-input" placeholder="分量（例：大さじ2）" value="${esc(ing.amount)}" autocomplete="off">
-        <ul class="suggest-list hidden"></ul>
-      </div>
-      <button type="button" class="remove-row" aria-label="削除">×</button>
-    </div>`).join("");
+  const {names}=ingredientHistory(),stage=formStages[si];
+  const container=$("stagesContainer").querySelector('.ingredient-rows[data-si="'+si+'"]');
+  stage.ingredients=stage.ingredients.map(parseIngredient);
+  container.innerHTML=stage.ingredients.map((ing,ii)=>'<div class="ingredient-row" data-ii="'+ii+'"><div class="autocomplete-wrap"><input type="text" class="name-input" aria-label="材料名" placeholder="材料名" value="'+esc(ing.name)+'" autocomplete="off"><ul class="suggest-list hidden"></ul></div><input class="quantity-input" type="number" inputmode="decimal" min="0" step="any" aria-label="数量" placeholder="数量" value="'+esc(ing.quantity)+'"><select class="unit-input" aria-label="単位">'+unitOptions(UNITS,ing.unit)+'</select><button type="button" class="remove-row" aria-label="材料を削除">×</button>'+(ing.legacyAmount?'<label class="legacy-amount">元の分量（自由入力）<input class="legacy-input" type="text" value="'+esc(ing.legacyAmount)+'"></label>':'')+'</div>').join("");
   container.querySelectorAll(".ingredient-row").forEach(row=>{
-    const ii=Number(row.dataset.ii);
-    const wraps=row.querySelectorAll(".autocomplete-wrap");
-    const nameInput=wraps[0].querySelector("input"),nameList=wraps[0].querySelector(".suggest-list");
-    const amountInput=wraps[1].querySelector("input"),amountList=wraps[1].querySelector(".suggest-list");
-    setupAutocomplete(nameInput,nameList,names,v=>{stage.ingredients[ii].name=v;});
-    setupAutocomplete(amountInput,amountList,amounts,v=>{stage.ingredients[ii].amount=v;});
-    row.querySelector(".remove-row").onclick=()=>{stage.ingredients.splice(ii,1);renderStageIngredientRows(si);};
+    const ing=stage.ingredients[Number(row.dataset.ii)];
+    setupAutocomplete(row.querySelector(".name-input"),row.querySelector(".suggest-list"),names,v=>ing.name=v);
+    row.querySelector(".quantity-input").oninput=e=>{ing.quantity=e.target.value;ing.legacyAmount="";const old=row.querySelector(".legacy-amount");if(old)old.remove();};
+    row.querySelector(".unit-input").onchange=e=>{ing.unit=e.target.value;ing.legacyAmount="";const old=row.querySelector(".legacy-amount");if(old)old.remove();};
+    const legacy=row.querySelector(".legacy-input");if(legacy)legacy.oninput=e=>ing.legacyAmount=e.target.value;
+    row.querySelector(".remove-row").onclick=()=>{stage.ingredients.splice(Number(row.dataset.ii),1);renderStageIngredientRows(si);};
   });
 }
 function addIngredientRowToStage(si){
@@ -516,33 +526,27 @@ function openRecipeForm(recipe){
   $("recipeId").value=recipe?.id||"";
   $("recipeFormTitle").textContent=recipe?"レシピを編集":"レシピを追加";
   $("recipeName").value=recipe?.name||"";
-  $("recipeCategory").innerHTML=state.categories.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join("");
-  $("recipeCategory").value=recipe?.categoryId||currentCategoryId||state.categories[0]?.id||"";
-  $("recipeServingBase").innerHTML=SERVING_OPTIONS.map(o=>`<option value="${o}">${o}</option>`).join("");
-  $("recipeServingBase").value=recipe?.servingBase||"1人前";
+  $("recipeCategory").innerHTML='<option value="">未分類</option>'+state.categories.map(c=>`<option value="${esc(c.id)}">${esc(c.name)}</option>`).join("");
+  $("recipeCategory").value=recipe?recipe.categoryId||"":currentCategoryId||"";
+  const base=recipeYield(recipe||{});
+  $("recipeYieldQuantity").value=base.quantity;
+  $("recipeYieldUnit").innerHTML=unitOptions(YIELD_UNITS,base.unit);
+  renderChecks("recipeMonths",MONTHS,recipe?.months||[],v=>v+"月");
+  renderChecks("recipeSeasons",SEASONS,recipe?.seasons||[],v=>v);
+  $("recipeSourceText").value=recipe?.sourceText||"";
+  formAttachments=[...(recipe?.attachments||[])];
+  formSession++;imageJobs=0;setImageBusy();renderAttachments();
   formStages=recipe?.stages?.length?recipe.stages.map(s=>({groupName:s.groupName||"",ingredients:(s.ingredients||[]).map(i=>({...i})),instruction:s.instruction||""})):[{groupName:"",ingredients:[{name:"",amount:""}],instruction:""}];
   renderStages();
   $("recipeCookedDate").value=recipe?.cookedDate||"";
   $("recipeCookTime").value=recipe?.cookTime||"";
   $("recipeMemo").value=recipe?.memo||"";
-  formRating=recipe?.rating||0;
   formPhoto=recipe?.photo||"";
-  renderRatingPicker();
   renderPhotoPreview();
   openModal("recipeForm");
   $("recipeName").focus();
 }
-function renderRatingPicker(){
-  const wrap=$("ratingPicker");
-  wrap.innerHTML=[1,2,3,4,5].map(n=>`<span data-n="${n}" class="${n<=formRating?"active":""}">★</span>`).join("");
-  wrap.querySelectorAll("span").forEach(s=>{
-    s.onclick=()=>{
-      const n=Number(s.dataset.n);
-      formRating=formRating===n?0:n;
-      renderRatingPicker();
-    };
-  });
-}
+
 function renderPhotoPreview(){
   const img=$("recipePhotoPreview");
   const removeBtn=$("removePhotoButton");
@@ -550,9 +554,10 @@ function renderPhotoPreview(){
   else{img.classList.add("hidden");removeBtn.classList.add("hidden");}
 }
 function onPhotoChange(e){
-  const file=e.target.files[0];
-  if(!file)return;
-  compressImage(file).then(dataUrl=>{formPhoto=dataUrl;renderPhotoPreview();}).catch(()=>{alert("写真の読み込みに失敗しました。");});
+  const file=e.target.files[0];if(!file)return;
+  const session=formSession;
+  imageJobs++;setImageBusy();
+  compressImage(file).then(data=>{if(session===formSession){formPhoto=data;renderPhotoPreview();}}).catch(()=>{if(session===formSession)$("recipeFormError").textContent="写真を読み込めませんでした。JPEG・PNGなどの画像を選び直してください。";}).finally(()=>{if(session===formSession){imageJobs--;setImageBusy();}});
 }
 function compressImage(file,maxWidth=1000,quality=0.75){
   return new Promise((resolve,reject)=>{
@@ -575,42 +580,29 @@ function compressImage(file,maxWidth=1000,quality=0.75){
   });
 }
 function saveRecipeForm(e){
-  e.preventDefault();
+  e.preventDefault();if(imageJobs)return;
   const name=$("recipeName").value.trim();
   if(!name){$("recipeFormError").textContent="料理名を入力してください。";return;}
+  const quantity=Number($("recipeYieldQuantity").value);
+  if(!Number.isFinite(quantity)||quantity<=0){$("recipeFormError").textContent="基準量には0より大きい数を入力してください。";return;}
   const categoryId=$("recipeCategory").value;
-  const stages=formStages.map(s=>({
-    groupName:s.groupName.trim(),
-    ingredients:s.ingredients.map(i=>({name:i.name.trim(),amount:i.amount.trim()})).filter(i=>i.name),
-    instruction:s.instruction.trim()
-  })).filter(s=>s.groupName||s.ingredients.length||s.instruction);
-  const data={
-    name,categoryId,
-    photo:formPhoto,
-    rating:formRating,
-    servingBase:$("recipeServingBase").value,
-    stages,
-    cookedDate:$("recipeCookedDate").value,
-    cookTime:$("recipeCookTime").value.trim(),
-    memo:$("recipeMemo").value.trim()
-  };
+  const stages=formStages.map(s=>({groupName:s.groupName.trim(),ingredients:s.ingredients.map(i=>({...parseIngredient(i),name:i.name.trim(),amount:ingredientAmount(i,1)})).filter(i=>i.name),instruction:s.instruction.trim()})).filter(s=>s.groupName||s.ingredients.length||s.instruction);
+  const data={name,categoryId,photo:formPhoto,attachments:[...formAttachments],sourceText:$("recipeSourceText").value,months:checkedValues("recipeMonths"),seasons:checkedValues("recipeSeasons"),yield:{quantity,unit:$("recipeYieldUnit").value},stages,cookedDate:$("recipeCookedDate").value,cookTime:$("recipeCookTime").value.trim(),memo:$("recipeMemo").value.trim()};
   const existingId=$("recipeId").value;
-  if(existingId){
-    const r=findRecipe(existingId);
-    Object.assign(r,data);
-  }else{
-    state.recipes.push({id:id(),...data});
+  const next=JSON.parse(JSON.stringify(state));
+  if(existingId){const r=next.recipes.find(r=>r.id===existingId);Object.assign(r,data);delete r.rating;}
+  else next.recipes.push({id:id(),...data});
+  try{localStorage.setItem(KEY,JSON.stringify(next));}catch{
+    $("recipeFormError").textContent="保存できませんでした。入力内容は残っています。画像を減らすか、端末の空き容量を確認してください。";return;
   }
-  save();
-  closeModal("recipeForm");
-  currentCategoryId=categoryId;
-  renderCategoryList();
-  if(existingId)openRecipeDetail(existingId);
-  else showView("categoryView");
+  state=next;closeModal("recipeForm");
+  currentCategoryId=categoryId||null;selectedMonth="";selectedSeason="";$("recipeSearch").value="";renderFilters();renderCategoryList();
+  if(existingId)openRecipeDetail(existingId);else showView("categoryView");
 }
 
 /* ---------- modal ---------- */
 function openModal(name){
+  modalReturnFocus=document.activeElement;
   $(name+"Modal").classList.remove("hidden");
   $(name+"Modal").setAttribute("aria-hidden","false");
   document.body.classList.add("modal-open");
@@ -619,6 +611,85 @@ function closeModal(name){
   $(name+"Modal").classList.add("hidden");
   $(name+"Modal").setAttribute("aria-hidden","true");
   document.body.classList.remove("modal-open");
+  formSession++;imageJobs=0;
+  modalReturnFocus?.focus();
 }
 
+
+/* Quantity fields preserve old free-form amounts when they cannot be safely parsed. */
+function unitOptions(units,selected=""){
+  return [...new Set([...units,selected])].map(u=>'<option value="'+esc(u)+'"'+(u===selected?' selected':'')+'>'+esc(u||"—")+'</option>').join("");
+}
+function parseIngredient(i){
+  if(i.quantity!==undefined)return {...i,quantity:String(i.quantity),unit:i.unit||"",legacyAmount:i.legacyAmount||""};
+  const amount=String(i.amount||"").trim();
+  const match=amount.match(/^(\d+(?:\.\d+)?|\.\d+)\s*([^\d]*)$/);
+  if(match)return {...i,quantity:match[1],unit:match[2].trim(),legacyAmount:""};
+  const spoon=amount.match(/^(大さじ|小さじ)\s*(\d+(?:\.\d+)?)$/);
+  if(spoon)return {...i,quantity:spoon[2],unit:spoon[1],legacyAmount:""};
+  if(["少々","適量"].includes(amount))return {...i,quantity:"",unit:amount,legacyAmount:""};
+  return {...i,quantity:"",unit:"",legacyAmount:amount};
+}
+function ingredientAmount(item,ratio=1){
+  const i=parseIngredient(item);
+  if(i.legacyAmount)return i.legacyAmount+(ratio!==1?"（換算対象外）":"");
+  const q=i.quantity===""?"":formatNumber(Number(i.quantity)*ratio);
+  return ["大さじ","小さじ"].includes(i.unit)?i.unit+q:q+i.unit;
+}
+function recipeYield(r){
+  if(r.yield&&Number(r.yield.quantity)>0&&Number.isFinite(Number(r.yield.quantity)))return {quantity:Number(r.yield.quantity),unit:r.yield.unit||"人前"};
+  const old=String(r.servingBase||"1人前").match(/^(\d+(?:\.\d+)?)(.*)$/);
+  return {quantity:old?Number(old[1]):1,unit:old?old[2]:"人前"};
+}
+function unitFactor(unit){return {kg:1000,g:1,L:1000,ml:1}[unit]||1;}
+function compatibleUnits(unit){return ["g","kg"].includes(unit)?["g","kg"]:["ml","L"].includes(unit)?["ml","L"]:[unit];}
+function renderChecks(id,values,selected,label){
+  $(id).innerHTML=values.map(v=>'<label><input type="checkbox" value="'+esc(v)+'"'+(selected.map(String).includes(v)?' checked':'')+'><span>'+label(v)+'</span></label>').join("");
+}
+function checkedValues(id){return [...$(id).querySelectorAll("input:checked")].map(i=>i.value);}
+function renderFilters(){
+  [["monthFilters",MONTHS,selectedMonth,v=>v+"月"],["seasonFilters",SEASONS,selectedSeason,v=>v]].forEach(([id,values,selected,label])=>{
+    $(id).innerHTML=["",...values,"unset"].map(v=>'<button type="button" data-value="'+v+'" aria-pressed="'+(selected===v)+'">'+(v===""?"すべて":v==="unset"?"未設定":label(v))+'</button>').join("");
+    $(id).querySelectorAll("button").forEach(b=>b.onclick=()=>{if(id==="monthFilters")selectedMonth=b.dataset.value;else selectedSeason=b.dataset.value;renderFilters();renderRecipeList();});
+  });
+}
+function renderAttachments(){
+  $("recipeAttachmentsPreview").innerHTML=formAttachments.map((src,i)=>'<div><img src="'+esc(src)+'" alt="添付画像 '+(i+1)+'"><button type="button" class="secondary-button" data-remove="'+i+'">画像 '+(i+1)+' を削除</button></div>').join("");
+  $("recipeAttachmentsPreview").querySelectorAll("button").forEach(b=>b.onclick=()=>{formAttachments.splice(Number(b.dataset.remove),1);renderAttachments();});
+}
+function setImageBusy(){
+  $("recipeForm").querySelector('[type="submit"]').disabled=imageJobs>0;
+  $("recipeAttachmentsInput").disabled=imageJobs>0;
+  $("recipePhotoInput").disabled=imageJobs>0;
+  $("removePhotoButton").disabled=imageJobs>0;
+  $("attachmentStatus").textContent=imageJobs?"画像を読み込んでいます…":"画像と文章はそのまま保存されます。自動文字起こしは行いません。";
+}
+async function onAttachmentsChange(e){
+  const files=[...e.target.files],session=formSession;
+  if(!files.length)return;
+  imageJobs++;setImageBusy();
+  try{
+    for(const file of files){const data=await compressImage(file,1800,0.88);if(session!==formSession)return;formAttachments.push(data);renderAttachments();}
+  }catch{if(session===formSession)$("recipeFormError").textContent="一部の画像を読み込めませんでした。添付済みの画像を確認し、JPEG・PNGなどで追加し直してください。";}
+  finally{if(session===formSession){imageJobs--;setImageBusy();e.target.value="";}}
+}
+function prepDirty(){
+  clearTimeout(prepFeedbackTimer);$("preparationSaveButton").textContent="保存";$("preparationStatus").textContent="未保存の変更があります。";
+}
+function renderPrepRows(){
+  if(!prepRows.length)prepRows=[{name:"",quantity:"",unit:""}];
+  $("preparationRows").innerHTML=prepRows.map((r,i)=>'<div class="prep-row"><input class="prep-name" type="text" aria-label="仕込み名 '+(i+1)+'" placeholder="仕込み名" value="'+esc(r.name)+'"><input class="prep-quantity" type="number" inputmode="decimal" min="0" step="any" aria-label="数量 '+(i+1)+'" placeholder="数量" value="'+esc(r.quantity)+'"><select class="prep-unit" aria-label="単位 '+(i+1)+'">'+unitOptions(UNITS,r.unit)+'</select><button type="button" class="remove-row" aria-label="仕込み行 '+(i+1)+' を削除">×</button></div>').join("");
+  $("preparationRows").querySelectorAll(".prep-row").forEach((row,i)=>{
+    [[".prep-name","name"],[".prep-quantity","quantity"],[".prep-unit","unit"]].forEach(([selector,key])=>row.querySelector(selector).addEventListener("input",e=>{if(refreshPreparationDay())return;prepRows[i][key]=e.target.value;prepDirty();}));
+    row.querySelector("button").onclick=()=>{if(refreshPreparationDay())return;prepRows.splice(i,1);renderPrepRows();prepDirty();};
+    row.querySelector(".prep-name").onkeydown=e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();if(refreshPreparationDay())return;if(i===prepRows.length-1)prepRows.push({name:"",quantity:"",unit:""});renderPrepRows();$("preparationRows").children[i+1].querySelector("input").focus();prepDirty();}};
+    row.querySelector(".prep-name").onpaste=e=>{
+      const text=e.clipboardData.getData("text");if(!/[\r\n]/.test(text))return;e.preventDefault();if(refreshPreparationDay())return;
+      const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);if(!lines.length)return;
+      const input=e.target,prefix=input.value.slice(0,input.selectionStart),suffix=input.value.slice(input.selectionEnd);
+      lines[0]=prefix+lines[0];lines[lines.length-1]+=suffix;
+      prepRows.splice(i,1,...lines.map((name,n)=>({name,quantity:n===0?prepRows[i].quantity:"",unit:n===0?prepRows[i].unit:""})));renderPrepRows();prepDirty();
+    };
+  });
+}
 init();

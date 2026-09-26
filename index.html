@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>飲食店レシピノート</title>
 <link rel="icon" href="assets/app-icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20260926">
 </head>
 <body>
 <header class="app-header">
@@ -62,24 +62,26 @@
 
   <section id="preparationView" class="view task-view hidden" aria-label="今日の仕込み">
     <h2><time id="preparationDate"></time></h2>
-    <p class="task-note">仕込み名を1行ずつ入力してください。保存後も当日中は編集できます。</p>
+    <p class="task-note">仕込み名だけでも保存できます。数量・単位は必要なときに。</p>
     <form id="preparationForm">
-      <label for="preparationText">今日の仕込み</label>
-      <textarea id="preparationText" rows="9" placeholder="鶏南蛮&#10;ポテトサラダ&#10;牛すじ&#10;ランチ用だし" aria-describedby="preparationPolicy"></textarea>
+      <div class="quantity-heading" aria-hidden="true"><span>仕込み名</span><span>数量</span><span>単位</span><span></span></div>
+      <div id="preparationRows"></div>
+      <button id="addPreparationRow" class="secondary-button" type="button">＋ 行を追加</button>
       <p id="preparationPolicy" class="task-note">当日分のみ保存します。日付が変わると空欄になり、過去の履歴は残りません。</p>
-      <button class="primary-button task-save" type="submit">保存</button>
-      <p id="preparationStatus" class="task-status" role="status" aria-live="polite"></p>
+      <div class="prep-save-area"><button id="preparationSaveButton" class="primary-button task-save" type="submit">保存</button>
+      <p id="preparationStatus" class="task-status" role="status" aria-live="polite"></p></div>
     </form>
   </section>
 
   <section id="seasonView" class="view task-view hidden" aria-label="季節の食材を検索">
+    <div class="season-intro"><img src="assets/season.jpg" alt="色とりどりの野菜" width="640" height="400"><div><p>季節を、ひと皿に。</p><span>旬の食材から、お店の次のレシピへ。</span></div></div>
     <div class="season-step">
-      <h2><span>01</span> 旬の食材を知る</h2>
+      <h2><span>01</span> 旬を知る</h2>
       <p class="task-note">野菜・果物・魚の旬を確認して、使いたい食材を選びます。旬の時期は産地によって異なります。</p>
       <a class="resource-link" href="https://www.maff.go.jp/tohoku/monosiritai/syokutaku/tabemono.html" target="_blank" rel="noopener noreferrer">農林水産省の旬の食べ物を見る ↗<small>東北地方の目安・別タブで開きます</small></a>
     </div>
     <div class="season-step">
-      <h2><span>02</span> その食材のレシピを検索</h2>
+      <h2><span>02</span> レシピを探す</h2>
       <form id="seasonSearchForm" action="https://www.google.com/search" method="get" target="_blank" rel="noopener noreferrer">
         <label for="seasonIngredient">食材名</label>
         <input id="seasonIngredient" type="text" placeholder="例：さんま、なす、栗" maxlength="80" required>
@@ -89,13 +91,18 @@
       </form>
     </div>
     <div class="season-step">
-      <h2><span>03</span> レシピを登録する</h2>
+      <h2><span>03</span> お店のレシピに登録する</h2>
       <p class="task-note">見つけたレシピを入力するか、画像を添付して保存します。</p>
       <button id="seasonRegisterButton" class="primary-button task-save" type="button">レシピ登録へ進む →</button>
     </div>
   </section>
 
   <section id="categoryView" class="view hidden">
+    <label for="recipeSearch">レシピを検索</label>
+    <input id="recipeSearch" type="search" placeholder="レシピ名・材料名で検索" autocomplete="off">
+    <div class="filter-section"><span>月</span><div id="monthFilters" class="filter-options" role="group" aria-label="月で絞り込み"></div></div>
+    <div class="filter-section"><span>季節</span><div id="seasonFilters" class="filter-options" role="group" aria-label="季節で絞り込み"></div></div>
+    <div class="list-toolbar"><p id="recipeResultCount" role="status"></p><button id="clearRecipeFilters" class="text-button" type="button">絞り込みを解除</button><button id="manageCategories" class="text-button" type="button">カテゴリー管理</button></div>
     <div class="home-layout">
       <ul id="categoryList" class="category-sidebar"></ul>
       <div class="recipe-list-pane">
@@ -112,7 +119,7 @@
     </div>
     <div class="detail-body">
       <h2 id="detailName"></h2>
-      <div id="detailStars" class="stars-display"></div>
+      <p id="detailTags" class="task-note"></p>
       <div class="detail-meta">
         <span id="detailDate"></span>
         <span id="detailTime"></span>
@@ -120,8 +127,9 @@
       <div id="detailServingWrap" class="detail-section hidden">
         <div class="detail-section-header">
           <h3>分量</h3>
-          <select id="detailServingSelect" class="serving-select"></select>
+          <div class="yield-inputs"><label for="detailYieldQuantity">必要量</label><input id="detailYieldQuantity" type="number" inputmode="decimal" min="0.001" step="any"><select id="detailYieldUnit" aria-label="必要量の単位"></select></div>
         </div>
+        <p id="detailYieldNote" class="task-note" role="status"></p>
       </div>
       <div id="detailStagesWrap" class="detail-section hidden">
         <div id="detailStages"></div>
@@ -130,6 +138,7 @@
         <h3>メモ</h3>
         <p id="detailMemo" class="memo-text"></p>
       </div>
+      <div id="detailSourceWrap" class="detail-section hidden"><h3>取り込んだレシピ</h3><p id="detailSourceText" class="memo-text"></p><div id="detailAttachments" class="attachment-gallery"></div></div>
       <div class="detail-actions">
         <button id="editRecipeButton" class="secondary-button" type="button">編集する</button>
         <button id="deleteRecipeButton" class="danger-outline-button" type="button">削除する</button>
@@ -146,6 +155,10 @@
       <button id="addCategoryButton" class="secondary-button" type="button">＋ 追加</button>
     </div>
 
+  </section>
+
+  <section id="settingsView" class="view hidden">
+    <button id="openSupport" class="settings-link" type="button">使い方・サポート <span>→</span></button>
     <div class="data-section">
       <h3>データ管理</h3>
       <p class="field-benefit-note">カテゴリ・レシピをすべてファイルに保存します。機種変更や万一のデータ消失に備えられます。</p>
@@ -153,15 +166,28 @@
         <button id="exportButton" class="secondary-button" type="button">バックアップ</button>
         <label class="secondary-button file-label">復元<input id="importInput" type="file" accept="application/json" class="hidden"></label>
       </div>
+      <p class="task-note">レシピはこのブラウザ内に保存されます。別の端末には自動同期されません。仕込みは当日分のみで、バックアップには含まれません。</p>
     </div>
+    <p class="version-label">飲食店レシピノート / バージョン 1.1.0</p>
+  </section>
+
+  <section id="supportView" class="view task-view hidden">
+    <h2>今あるレシピを取り込むには</h2>
+    <p class="task-note">全部打ち直さなくても始められます。まずは料理名と、写真や文章だけで登録できます。</p>
+    <article class="support-card"><h3>紙のノートから</h3><p>ノートを明るい場所で撮影し、登録画面の「ノート・既存レシピの画像」に添付します。複数ページも追加できます。</p><button class="secondary-button" data-import-recipe="images" type="button">写真を添付して登録 →</button></article>
+    <article class="support-card"><h3>Excelから</h3><p>材料・分量・作り方のセルをコピーし、「レシピの文章を貼り付け」にペーストします。改行を保ったまま保存できます。</p><button class="secondary-button" data-import-recipe="text" type="button">文章を貼り付けて登録 →</button></article>
+    <article class="support-card"><h3>ほかのアプリから</h3><p>コピーできる文章を貼り付けるか、スクリーンショットを画像として添付します。</p><button class="secondary-button" data-import-recipe="text" type="button">レシピを登録する →</button></article>
+    <p class="task-note">画像・貼り付けた文章はそのまま保存します。文字起こしや材料への自動振り分けは行いません。分量を換算したい場合は、材料欄にも数量を入力してください。</p>
+    <article class="support-card"><h3>レシピを探す・整理する</h3><p>レシピ一覧で名前・材料名を検索できます。月・季節・カテゴリーで絞り込めます。カテゴリーの追加や並べ替えも一覧の「カテゴリー管理」から行えます。</p></article>
+    <article class="support-card"><h3>今日の仕込み</h3><p>仕込み名を入力し、必要なら数量と単位を追加して保存します。改行を含む仕込み名を貼り付けると行ごとに分かれます。翌日は空欄になります。</p></article>
   </section>
 
 </main>
 
 <div id="recipeFormModal" class="modal hidden" aria-hidden="true">
   <div class="modal-backdrop" data-close="recipeForm"></div>
-  <div class="modal-card">
-    <div class="modal-heading"><h2 id="recipeFormTitle">レシピを追加</h2><button class="icon-button" data-close="recipeForm" type="button">×</button></div>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="recipeFormTitle">
+    <div class="modal-heading"><h2 id="recipeFormTitle">レシピを追加</h2><button class="icon-button" data-close="recipeForm" type="button" aria-label="閉じる">×</button></div>
     <form id="recipeForm">
       <input type="hidden" id="recipeId">
       <label for="recipeName">料理名</label>
@@ -170,18 +196,26 @@
       <label for="recipeCategory">カテゴリ</label>
       <select id="recipeCategory"></select>
 
-      <label>写真（任意）</label>
+      <label for="recipePhotoInput">料理の写真（任意）</label>
       <div class="photo-input-row">
         <img id="recipePhotoPreview" class="photo-preview hidden" alt="">
         <input id="recipePhotoInput" type="file" accept="image/*">
         <button id="removePhotoButton" class="secondary-button small-button hidden" type="button">写真を削除</button>
       </div>
 
-      <label>評価</label>
-      <div id="ratingPicker" class="rating-picker"></div>
-
-      <label for="recipeServingBase">この分量は</label>
-      <select id="recipeServingBase"></select>
+      <div class="import-panel"><h3>今あるレシピを取り込む</h3>
+        <label for="recipeAttachmentsInput">ノート・既存レシピの画像（複数選択可）</label>
+        <input id="recipeAttachmentsInput" type="file" accept="image/*" multiple>
+        <div id="recipeAttachmentsPreview" class="attachment-gallery"></div>
+        <label for="recipeSourceText">レシピの文章を貼り付け</label>
+        <textarea id="recipeSourceText" rows="4" placeholder="Excelや他のアプリからコピーした材料・分量・作り方を、そのまま貼り付けられます。"></textarea>
+        <p id="attachmentStatus" class="task-note" role="status"></p>
+      </div>
+      <fieldset><legend>月（任意・複数選択可）</legend><div id="recipeMonths" class="check-options"></div></fieldset>
+      <fieldset><legend>季節（任意・複数選択可）</legend><div id="recipeSeasons" class="check-options"></div></fieldset>
+      <label for="recipeYieldQuantity">このレシピの基準量</label>
+      <div class="yield-inputs"><input id="recipeYieldQuantity" type="number" inputmode="decimal" min="0.001" step="any" value="1" required><select id="recipeYieldUnit" aria-label="基準量の単位"></select></div>
+      <p class="task-note">例：10人前、2L、1回分。詳細画面で必要量に換算できます。</p>
 
       <label>工程（材料と作り方）</label>
       <div id="stagesContainer" class="stages-container"></div>
@@ -202,6 +236,6 @@
   </div>
 </div>
 
-<script src="script.js"></script>
+<script src="script.js?v=20260926"></script>
 </body>
 </html>
