@@ -18,6 +18,15 @@ const MONTHS=Array.from({length:12},(_,i)=>String(i+1));
 const SEASONS=["春","夏","秋","冬"];
 const UNITS=["","g","kg","ml","L","個","本","枚","人前","回分","袋","束","大さじ","小さじ","少々","適量"];
 const YIELD_UNITS=["人前","回分","バット","鍋","ボウル","個","本","kg","g","L","ml"];
+const SHOP_PRESETS={
+  restaurant:{name:"飲食店",categories:["前菜・小鉢","サラダ","主菜・メイン","副菜・付け合わせ","ご飯・麺","汁物・スープ","だし・ソース・たれ","デザート"],units:["g","ml","個","本"]},
+  bakery:{name:"パン屋",categories:["食パン","食事パン","惣菜パン","菓子パン","生地","フィリング・具材"],units:["g","kg","個"]},
+  pastry:{name:"菓子店",categories:["ケーキ","焼き菓子","冷菓","和菓子","生地","クリーム・フィリング"],units:["g","ml","個","枚"]},
+  cafe:{name:"カフェ・喫茶店",categories:["コーヒー・お茶","その他のドリンク","軽食","デザート","シロップ・ソース"],units:["ml","g","個","L"]},
+  deli:{name:"惣菜・弁当店",categories:["弁当","主菜・メイン","副菜・付け合わせ","ご飯・おにぎり","揚げ物","だし・ソース・たれ"],units:["g","kg","個","人前"]},
+  other:{name:"その他・自分で設定",categories:[],units:[]}
+};
+let shopSettingsReturnView="homeView";
 let selectedMonths=[],selectedSeasons=[];
 let formAttachments=[];
 let imageJobs=0,formSession=0;
@@ -28,15 +37,7 @@ let formStages=[];
 
 function defaultState(){
   return{
-    categories:[
-      {id:"sauce",name:"ソースレシピ"},
-      {id:"tare",name:"タレレシピ"},
-      {id:"dressing",name:"ドレッシングレシピ"},
-      {id:"spice",name:"スパイスレシピ"},
-      {id:"side",name:"総菜レシピ"},
-      {id:"meat",name:"肉料理レシピ"},
-      {id:"fish",name:"魚料理レシピ"}
-    ],
+    categories:[],
     recipes:[]
   };
 }
@@ -144,9 +145,22 @@ function init(){
   schedulePreparationDate();
   renderCategoryList();
   showView("homeView");
+  updateShopSettingsSummary();
+  if(!state.shopSettings?.completed)openShopSettings("homeView");
 }
 
 function bind(){
+  $("openShopSettings").onclick=()=>openShopSettings("settingsView");
+  $("shopSettingsNext").onclick=previewShopCategories;
+  $("shopSettingsPrevious").onclick=()=>{
+    $("shopCategoryStep").classList.add("hidden");$("shopIndustryStep").classList.remove("hidden");
+    $("shopSettingsStatus").textContent="";
+  };
+  $("shopSettingsForm").onsubmit=saveShopSettings;
+  $("skipShopSettings").onclick=()=>{
+    if(!state.shopSettings?.completed){state.shopSettings={completed:true,industries:[]};if(!save())return;}
+    updateShopSettingsSummary();showView(shopSettingsReturnView);
+  };
   document.querySelectorAll("[data-home-action]").forEach(card=>{
     card.onclick=()=>{
       const action=card.dataset.homeAction;
@@ -239,7 +253,7 @@ function showView(name){
   $("headerTagline").classList.toggle("hidden",name!=="homeView");
   document.body.classList.toggle("is-home",name==="homeView");
   const titles={homeView:"飲食店レシピノート",categoryView:"レシピ一覧",recipeDetailView:(findRecipe(currentRecipeId)||{}).name||"",categoryEditView:"カテゴリー管理",settingsView:"設定",supportView:"使い方・サポート",preparationView:"次回の仕込み",seasonView:"季節の食材を検索"};
-  $("headerTitle").textContent=titles[name]||"飲食店レシピノート";
+  $("headerTitle").textContent=name==="shopSettingsView"?"お店設定":titles[name]||"飲食店レシピノート";
   $("headerTitle").focus({preventScroll:true});
   window.scrollTo(0,0);
 }
@@ -463,6 +477,8 @@ function importBackup(e){
       if(!save())return;
       currentCategoryId=null;
       renderCategoryList();
+      updateShopSettingsSummary();
+      refreshPreparationUnits();
       alert("復元しました。");
     }catch{
       alert("正しいバックアップファイルではありません。");
@@ -632,7 +648,65 @@ function closeModal(name){
 
 /* Quantity fields preserve old free-form amounts when they cannot be safely parsed. */
 function unitOptions(units,selected=""){
-  return [...new Set([...units,selected])].map(u=>'<option value="'+esc(u)+'"'+(u===selected?' selected':'')+'>'+esc(u||"—")+'</option>').join("");
+  return [...new Set([...orderedShopUnits(units),selected])].map(u=>'<option value="'+esc(u)+'"'+(u===selected?' selected':'')+'>'+esc(u||"—")+'</option>').join("");
+}
+
+function shopIndustries(){
+  return Array.isArray(state.shopSettings?.industries)?state.shopSettings.industries.filter(key=>Object.hasOwn(SHOP_PRESETS,key)):[];
+}
+function orderedShopUnits(units,industries=shopIndustries()){
+  const preferred=industries.flatMap(key=>SHOP_PRESETS[key]?.units||[]).filter(unit=>units.includes(unit));
+  return [...new Set([...(units.includes("")?[""]:[]),...preferred,...units])];
+}
+function updateShopSettingsSummary(){
+  const names=shopIndustries().map(key=>SHOP_PRESETS[key].name);
+  $("shopSettingsSummary").textContent=names.length?"選択中："+names.join("・"):"業種は未設定です。お店に合わせたカテゴリー候補を選べます。";
+}
+function refreshPreparationUnits(){
+  $("preparationRows").querySelectorAll(".unit-input").forEach(select=>{
+    const selected=select.value;
+    select.innerHTML=unitOptions([...new Set([...UNITS,...YIELD_UNITS])],selected);
+  });
+}
+function openShopSettings(returnView){
+  shopSettingsReturnView=returnView;
+  backTargets.shopSettingsView=returnView;
+  const selected=shopIndustries();
+  $("shopIndustryOptions").innerHTML=Object.entries(SHOP_PRESETS).map(([key,preset])=>'<label><input type="checkbox" value="'+key+'"'+(selected.includes(key)?' checked':'')+'><span>'+esc(preset.name)+'</span></label>').join("");
+  $("shopIndustryStep").classList.remove("hidden");
+  $("shopCategoryStep").classList.add("hidden");
+  $("shopSettingsStatus").textContent="";
+  $("skipShopSettings").textContent=returnView==="homeView"?"あとで設定する":"変更せず戻る";
+  showView("shopSettingsView");
+}
+function previewShopCategories(){
+  const industries=checkedValues("shopIndustryOptions");
+  if(!industries.length){$("shopSettingsStatus").textContent="業種を選んでください。候補がない場合は「その他・自分で設定」を選べます。";return;}
+  const categories=[...new Set(industries.flatMap(key=>SHOP_PRESETS[key].categories))];
+  $("shopCategoryOptions").innerHTML=categories.length?categories.map(name=>{
+    const exists=state.categories.some(category=>category.name===name);
+    return '<label><input type="checkbox" value="'+esc(name)+'" checked'+(exists?' disabled':'')+'><span>'+esc(name)+(exists?'（登録済み）':'')+'</span></label>';
+  }).join(""):'<p class="task-note">カテゴリーは追加しません。設定の「カテゴリー管理」から自由に作成できます。</p>';
+  const units=orderedShopUnits(UNITS,industries).filter(Boolean).slice(0,4);
+  $("shopUnitPreview").textContent="単位の表示順："+units.join("、")+" …";
+  $("shopIndustryStep").classList.add("hidden");
+  $("shopCategoryStep").classList.remove("hidden");
+  $("shopSettingsStatus").textContent="";
+  $("shopSettingsPrevious").focus();
+}
+function saveShopSettings(e){
+  e.preventDefault();
+  if($("shopCategoryStep").classList.contains("hidden")){previewShopCategories();return;}
+  const industries=checkedValues("shopIndustryOptions");
+  for(const name of checkedValues("shopCategoryOptions")){
+    if(!state.categories.some(category=>category.name===name))state.categories.push({id:id(),name});
+  }
+  state.shopSettings={completed:true,industries};
+  if(!save()){$("shopSettingsStatus").textContent="保存できませんでした。選択内容を確認してもう一度保存してください。";return;}
+  renderCategoryList();
+  updateShopSettingsSummary();
+  refreshPreparationUnits();
+  showView(shopSettingsReturnView);
 }
 function parseIngredient(i){
   if(i.quantity!==undefined)return {...i,quantity:String(i.quantity),unit:i.unit||"",legacyAmount:i.legacyAmount||""};

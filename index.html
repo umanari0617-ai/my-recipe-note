@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>飲食店レシピノート</title>
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMzMTRlNDAiLz48ZyBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZkZjgiIHN0cm9rZS13aWR0aD0iMi42IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0zMiAxOXYzME0xMyAxN2M3LTIgMTMgMCAxOSA0IDYtNCAxMi02IDE5LTR2MjhjLTctMi0xMyAwLTE5IDQtNi00LTEyLTYtMTktNFoiLz48cGF0aCBkPSJtMTkgMjYgNyAybS03IDYgNyAybTEyLTggNy0ybS03IDEwIDctMiIvPjwvZz48L3N2Zz4K" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=20260927-3">
+<link rel="stylesheet" href="style.css?v=1.3.0">
 </head>
 <body>
 <header class="app-header">
@@ -161,6 +161,8 @@
   </section>
 
   <section id="settingsView" class="view hidden">
+    <button id="openShopSettings" class="settings-link" type="button">お店設定 <span>→</span></button>
+    <p id="shopSettingsSummary" class="task-note"></p>
     <button id="manageCategories" class="settings-link" type="button">カテゴリー管理 <span>→</span></button>
     <button id="openSupport" class="settings-link" type="button">使い方・サポート <span>→</span></button>
     <div class="data-section">
@@ -172,10 +174,31 @@
       </div>
       <p class="task-note">レシピはこのブラウザ内に保存されます。別の端末には自動同期されません。仕込みメモは1件だけ保持し、レシピのバックアップには含まれません。</p>
     </div>
-    <p class="version-label">飲食店レシピノート / バージョン 1.2.2</p>
+    <p class="version-label">飲食店レシピノート / バージョン 1.3.0</p>
+  </section>
+
+  <section id="shopSettingsView" class="view task-view hidden" aria-label="お店設定">
+    <form id="shopSettingsForm">
+      <div id="shopIndustryStep">
+        <h2>どのようなお店で使いますか？</h2>
+        <p class="task-note">業種に合わせて、カテゴリー候補とよく使う単位をご用意します。複数選択できます。</p>
+        <fieldset><legend>お店の業種</legend><div id="shopIndustryOptions" class="check-options"></div></fieldset>
+        <div class="form-actions"><button id="shopSettingsNext" type="button" class="primary-button">カテゴリーを確認</button><button id="skipShopSettings" type="button" class="secondary-button">あとで設定する</button></div>
+      </div>
+      <div id="shopCategoryStep" class="hidden">
+        <h2>このカテゴリーで始めますか？</h2>
+        <p class="task-note">不要な候補はチェックを外せます。登録済みのカテゴリー・レシピは変更しません。</p>
+        <fieldset><legend>追加するカテゴリー</legend><div id="shopCategoryOptions" class="check-options"></div></fieldset>
+        <p id="shopUnitPreview" class="task-note"></p>
+        <p class="task-note">ほかの単位も引き続き選べます。設定はあとから変更できます。</p>
+        <div class="form-actions"><button id="shopSettingsPrevious" type="button" class="secondary-button">業種を選び直す</button><button type="submit" class="primary-button">この設定で保存</button></div>
+      </div>
+      <p id="shopSettingsStatus" class="task-status" role="status"></p>
+    </form>
   </section>
 
   <section id="supportView" class="view task-view hidden">
+    <article class="support-card"><h3>お店に合わせて設定する</h3><p>初回に業種を選び、追加するカテゴリーを確認できます。業種は複数選択でき、「あとで設定する」で始めることもできます。設定の「お店設定」からいつでも変更できます。登録済みのカテゴリーやレシピはそのまま残り、材料・仕込みの単位はよく使うものから表示します。</p></article>
     <h2>今あるレシピを取り込むには</h2>
     <p class="task-note">全部打ち直さなくても始められます。まずは料理名と、写真や文章だけで登録できます。</p>
     <article class="support-card"><h3>紙のノートから</h3><p>ノートを明るい場所で撮影し、登録画面の「ノート・既存レシピの画像」に添付します。複数ページも追加できます。</p><button class="secondary-button" data-import-recipe="images" type="button">写真を添付して登録 →</button></article>
@@ -246,6 +269,6 @@
   </div>
 </div>
 
-<script src="script.js?v=20260927-3"></script>
+<script src="script.js?v=1.3.0"></script>
 </body>
 </html>
