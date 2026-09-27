@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>飲食店レシピノート</title>
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMzMTRlNDAiLz48ZyBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZkZjgiIHN0cm9rZS13aWR0aD0iMi42IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0zMiAxOXYzME0xMyAxN2M3LTIgMTMgMCAxOSA0IDYtNCAxMi02IDE5LTR2MjhjLTctMi0xMyAwLTE5IDQtNi00LTEyLTYtMTktNFoiLz48cGF0aCBkPSJtMTkgMjYgNyAybS03IDYgNyAybTEyLTggNy0ybS03IDEwIDctMiIvPjwvZz48L3N2Zz4K" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.3.2">
+<link rel="stylesheet" href="style.css?v=1.3.3">
 </head>
 <body>
 <header class="app-header">
@@ -104,16 +104,16 @@
     <div class="filter-bar">
       <details id="monthDropdown" class="filter-dropdown"><summary id="monthSummary">月 ▾</summary><div class="filter-panel"><p>月を選択（複数可・未選択は絞り込みなし）</p><div id="monthFilters" class="filter-checks" role="group" aria-label="月で絞り込み"></div><div class="filter-footer"><button class="text-button" data-clear-filter="months" type="button">すべて解除</button><button class="secondary-button" data-close-filter type="button">閉じる</button></div></div></details>
       <details id="seasonDropdown" class="filter-dropdown"><summary id="seasonSummary">季節 ▾</summary><div class="filter-panel"><p>季節を選択（複数可・未選択は絞り込みなし）</p><div id="seasonFilters" class="filter-checks" role="group" aria-label="季節で絞り込み"></div><div class="filter-footer"><button class="text-button" data-clear-filter="seasons" type="button">すべて解除</button><button class="secondary-button" data-close-filter type="button">閉じる</button></div></div></details>
-      <details id="categoryDropdown" class="filter-dropdown"><summary id="categorySummary">カテゴリ ▾</summary><div class="filter-panel"><ul id="categoryList" class="category-sidebar"></ul></div></details>
     </div>
     <div class="list-toolbar"><p id="recipeResultCount" role="status"></p><button id="clearRecipeFilters" class="text-button" type="button">すべて解除</button></div>
     <div class="home-layout">
+      <nav class="category-navigation" aria-label="カテゴリー"><ul id="categoryList" class="category-sidebar"></ul></nav>
       <div class="recipe-list-pane">
         <div id="recipeListEmpty" class="empty-message hidden">まだレシピが<br>ありません。</div>
         <ul id="recipeList" class="recipe-list"></ul>
+        <button id="addRecipeButton" class="primary-button recipe-add-button" type="button">＋ レシピを追加</button>
       </div>
     </div>
-    <button id="addRecipeButton" class="primary-button recipe-add-button" type="button">＋ レシピを追加</button>
   </section>
 
   <section id="recipeDetailView" class="view hidden">
@@ -174,7 +174,7 @@
       </div>
       <p class="task-note">レシピはこのブラウザ内に保存されます。別の端末には自動同期されません。仕込みメモは1件だけ保持し、レシピのバックアップには含まれません。</p>
     </div>
-    <p class="version-label">飲食店レシピノート / バージョン 1.3.2</p>
+    <p class="version-label">飲食店レシピノート / バージョン 1.3.3</p>
   </section>
 
   <section id="shopSettingsView" class="view task-view hidden" aria-label="お店設定">
@@ -271,6 +271,6 @@
   </div>
 </div>
 
-<script src="script.js?v=1.3.2"></script>
+<script src="script.js?v=1.3.3"></script>
 </body>
 </html>

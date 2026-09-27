@@ -298,17 +298,16 @@ function recipesInCategory(catId){return state.recipes.filter(r=>r.categoryId===
 /* ---------- category sidebar ---------- */
 function renderCategoryList(){
   if(currentCategoryId&&!state.categories.some(c=>c.id===currentCategoryId))currentCategoryId=null;
-  $("categoryList").innerHTML=[{id:"",name:"すべて"},...state.categories].map(c=>
-    '<li><button type="button" data-id="'+esc(c.id)+'" aria-pressed="'+(c.id===(currentCategoryId||""))+'">'+esc(c.name)+'</button></li>'
+  $("categoryList").innerHTML=[{id:null,name:"すべて"},...state.categories,{id:"",name:"未分類"}].map(c=>
+    '<li><button type="button" data-id="'+esc(c.id||"")+'" data-all="'+(c.id===null)+'" aria-pressed="'+(c.id===currentCategoryId)+'">'+esc(c.name)+'</button></li>'
   ).join("");
-  $("categoryList").querySelectorAll("button").forEach(b=>b.onclick=()=>openCategory(b.dataset.id||null));
-  $("categorySummary").textContent=(currentCategoryId?categoryName(currentCategoryId):"カテゴリ")+" ▾";
+  $("categoryList").querySelectorAll("button").forEach(b=>b.onclick=()=>openCategory(b.dataset.all==="true"?null:b.dataset.id));
   renderRecipeList();
 }
 function openCategory(catId){
   currentCategoryId=catId;
   renderCategoryList();
-  $("categoryDropdown").open=false;
+  $("categoryList").querySelector('[aria-pressed="true"]')?.focus({preventScroll:true});
 }
 
 /* ---------- recipe list ---------- */
@@ -317,7 +316,7 @@ function renderRecipeList(){
   const terms=normalize($("recipeSearch").value).trim().split(/\s+/).filter(Boolean);
   const recipes=state.recipes.filter(r=>{
     const haystack=normalize([r.name,...(r.stages||[]).flatMap(s=>s.ingredients.map(i=>i.name))].join(" "));
-    return (!currentCategoryId||r.categoryId===currentCategoryId)&&matchesTags(r.months,selectedMonths,MONTHS)&&matchesTags(r.seasons,selectedSeasons,SEASONS)&&terms.every(t=>haystack.includes(t));
+    return (currentCategoryId===null||(currentCategoryId===""?!r.categoryId:r.categoryId===currentCategoryId))&&matchesTags(r.months,selectedMonths,MONTHS)&&matchesTags(r.seasons,selectedSeasons,SEASONS)&&terms.every(t=>haystack.includes(t));
   });
   $("recipeResultCount").textContent=recipes.length+"件";
   $("recipeListEmpty").textContent=state.recipes.length?"条件に合うレシピがありません。":"まだレシピがありません。";
