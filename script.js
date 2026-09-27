@@ -684,25 +684,44 @@ function previewShopCategories(){
   if(!industries.length){$("shopSettingsStatus").textContent="業種を選んでください。候補がない場合は「その他・自分で設定」を選べます。";return;}
   const categories=[...new Set(industries.flatMap(key=>SHOP_PRESETS[key].categories))];
   $("shopCategoryOptions").innerHTML=categories.length?categories.map(name=>{
-    const exists=state.categories.some(category=>category.name===name);
-    return '<label><input type="checkbox" value="'+esc(name)+'" checked'+(exists?' disabled':'')+'><span>'+esc(name)+(exists?'（登録済み）':'')+'</span></label>';
+    const existing=state.categories.find(category=>category.name===name);
+    const protectedCategory=existing&&!isUnusedPresetCategory(existing);
+    return '<label><input type="checkbox" value="'+esc(name)+'" checked'+(protectedCategory?' disabled':'')+'><span>'+esc(name)+(existing?'（登録済み）':'')+'</span></label>';
   }).join(""):'<p class="task-note">カテゴリーは追加しません。設定の「カテゴリー管理」から自由に作成できます。</p>';
   const units=orderedShopUnits(UNITS,industries).filter(Boolean).slice(0,4);
   $("shopUnitPreview").textContent="単位の表示順："+units.join("、")+" …";
   $("shopIndustryStep").classList.add("hidden");
   $("shopCategoryStep").classList.remove("hidden");
   $("shopSettingsStatus").textContent="";
+  $("shopCategoryOptions").onchange=updateCategoryCleanupPreview;
+  updateCategoryCleanupPreview();
   $("shopSettingsPrevious").focus();
+}
+function isUnusedPresetCategory(category){
+  const legacy={sauce:"ソースレシピ",tare:"タレレシピ",dressing:"ドレッシングレシピ",spice:"スパイスレシピ",side:"総菜レシピ",meat:"肉料理レシピ",fish:"魚料理レシピ"};
+  const automatic=category.presetName===category.name||(Object.hasOwn(legacy,category.id)&&legacy[category.id]===category.name);
+  return automatic&&!state.recipes.some(recipe=>recipe.categoryId===category.id);
+}
+function unusedCategoriesToRemove(){
+  const selected=new Set(checkedValues("shopCategoryOptions"));
+  return state.categories.filter(category=>isUnusedPresetCategory(category)&&!selected.has(category.name));
+}
+function updateCategoryCleanupPreview(){
+  const removed=unusedCategoriesToRemove();
+  $("shopCategoryCleanup").textContent=removed.length?"保存すると、未使用の初期カテゴリーを整理します："+removed.map(category=>category.name).join("、"):"整理する未使用の初期カテゴリーはありません。";
 }
 function saveShopSettings(e){
   e.preventDefault();
   if($("shopCategoryStep").classList.contains("hidden")){previewShopCategories();return;}
   const industries=checkedValues("shopIndustryOptions");
+  const removed=new Set(unusedCategoriesToRemove().map(category=>category.id));
+  state.categories=state.categories.filter(category=>!removed.has(category.id));
   for(const name of checkedValues("shopCategoryOptions")){
-    if(!state.categories.some(category=>category.name===name))state.categories.push({id:id(),name});
+    if(!state.categories.some(category=>category.name===name))state.categories.push({id:id(),name,presetName:name});
   }
   state.shopSettings={completed:true,industries};
   if(!save()){$("shopSettingsStatus").textContent="保存できませんでした。選択内容を確認してもう一度保存してください。";return;}
+  if(removed.has(currentCategoryId))currentCategoryId=null;
   renderCategoryList();
   updateShopSettingsSummary();
   refreshPreparationUnits();
