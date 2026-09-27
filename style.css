@@ -151,6 +151,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 
 /* forms / buttons */
 label{display:block;font-size:13px;font-weight:700;color:var(--muted);margin:16px 0 6px;}
+.required-label{font-weight:800;color:var(--text);}
+.required-badge{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:4px;background:#f4e6d9;color:var(--accent-dark);font-size:12px;font-weight:800;vertical-align:middle;}
+.field-help{margin-top:6px;font-size:13px;color:var(--muted);}
+.field-help summary{width:fit-content;min-height:44px;padding:12px 0;cursor:pointer;color:var(--accent-dark);font-weight:700;}
+.field-help summary:focus-visible{outline:3px solid #3f6653;outline-offset:2px;}
+.field-help p{margin:0 0 8px;line-height:1.8;}
 input[type=text],input[type=number],input[type=search],input[type=date],input[type=file],select,textarea{
   width:100%;padding:11px 12px;border:1px solid var(--border);border-radius:10px;
   font-size:16px;font-family:inherit;background:#fff;color:var(--text);
