@@ -158,7 +158,7 @@ function bind(){
       }else if(action==="preparation"){
         refreshPreparationDate();
         showView("preparationView");
-        const input=$("preparationText");
+        const input=$("preparationRows").querySelector(".name-input");
         input.focus();
         input.setSelectionRange(input.value.length,input.value.length);
       }else if(action==="season"){
@@ -179,6 +179,7 @@ function bind(){
   };
   $("preparationForm").onsubmit=savePreparation;
   $("preparationText").oninput=prepDirty;
+  $("addPreparationRow").onclick=()=>{addPreparationRow();prepDirty();$("preparationRows").lastElementChild.querySelector("input").focus();};
   $("deletePreparationButton").onclick=()=>$("deletePreparationDialog").showModal();
   $("cancelPreparationDelete").onclick=()=>$("deletePreparationDialog").close();
   $("confirmPreparationDelete").onclick=deletePreparationMemo;
@@ -199,7 +200,7 @@ function bind(){
   window.addEventListener("storage",e=>{
     if(e.key===PREPARATION_KEY||e.key===null){
       if(preparationDirty){$("preparationStatus").textContent="別の画面で保存内容が変わりました。入力中の内容は残っています。";return;}
-      $("preparationText").value=e.newValue||"";
+      restorePreparation(e.newValue);
       $("preparationStatus").textContent="保存内容を更新しました。";
     }
   });
@@ -236,7 +237,7 @@ function showView(name){
   $("appBrandIcon").classList.toggle("hidden",name!=="homeView");
   $("headerTagline").classList.toggle("hidden",name!=="homeView");
   document.body.classList.toggle("is-home",name==="homeView");
-  const titles={homeView:"飲食店レシピノート",categoryView:"レシピ一覧",recipeDetailView:(findRecipe(currentRecipeId)||{}).name||"",categoryEditView:"カテゴリー管理",settingsView:"設定",supportView:"使い方・サポート",preparationView:"今日の仕込み",seasonView:"季節の食材を検索"};
+  const titles={homeView:"飲食店レシピノート",categoryView:"レシピ一覧",recipeDetailView:(findRecipe(currentRecipeId)||{}).name||"",categoryEditView:"カテゴリー管理",settingsView:"設定",supportView:"使い方・サポート",preparationView:"次回の仕込み",seasonView:"季節の食材を検索"};
   $("headerTitle").textContent=titles[name]||"飲食店レシピノート";
   $("headerTitle").focus({preventScroll:true});
   window.scrollTo(0,0);
@@ -263,7 +264,7 @@ function savePreparation(e){
   refreshPreparationDate();
   clearTimeout(prepFeedbackTimer);
   try{
-    localStorage.setItem(PREPARATION_KEY,$("preparationText").value);
+    localStorage.setItem(PREPARATION_KEY,JSON.stringify(readPreparation()));
     localStorage.removeItem(LEGACY_PREPARATION_KEY);
     preparationDirty=false;
     $("preparationSaveButton").textContent="✓ 保存しました";
@@ -683,23 +684,59 @@ function prepDirty(){
 }
 
 function loadPreparationMemo(){
+  restorePreparation(null);
   try{
     const current=localStorage.getItem(PREPARATION_KEY);
-    if(current!==null){$("preparationText").value=current;localStorage.removeItem(LEGACY_PREPARATION_KEY);return;}
+    if(current!==null){restorePreparation(current);return;}
     const old=localStorage.getItem(LEGACY_PREPARATION_KEY);
     if(old===null)return;
     const record=JSON.parse(old);
-    let text;
-    if(typeof record.text==="string")text=record.text;
-    else if(Array.isArray(record.rows))text=record.rows.map(row=>[String(row.name||""),[String(row.quantity??""),String(row.unit||"")].join("")].filter(Boolean).join(" ")).join("\n");
+    let migrated;
+    if(typeof record.text==="string")migrated={text:record.text,rows:[]};
+    else if(Array.isArray(record.rows))migrated={text:"",rows:record.rows};
     else throw new Error("Unknown legacy memo");
-    $("preparationText").value=text;
-    // Remove the old record only after the new single-string value is safely stored.
-    localStorage.setItem(PREPARATION_KEY,text);
+    restorePreparation(JSON.stringify({kind:"preparation",version:2,...migrated}));
+    // Remove legacy data only after the migrated record is safely stored.
+    localStorage.setItem(PREPARATION_KEY,JSON.stringify(readPreparation()));
     localStorage.removeItem(LEGACY_PREPARATION_KEY);
   }catch{
     $("preparationStatus").textContent="保存データの読み込み・移行を完了できませんでした。元のデータは削除していません。入力内容を確認して保存してください。";
   }
+}
+function addPreparationRow(item={}){
+  const row=document.createElement("div");
+  row.className="ingredient-row";
+  row.innerHTML='<input type="text" class="name-input" aria-label="仕込み名" placeholder="仕込み名"><input class="quantity-input" type="number" inputmode="decimal" min="0" step="any" aria-label="数量" placeholder="数量"><select class="unit-input" aria-label="単位"></select><button type="button" class="remove-row" aria-label="仕込みを削除">×</button>';
+  row.querySelector(".name-input").value=String(item.name??"");
+  row.querySelector(".quantity-input").value=String(item.quantity??"");
+  row.querySelector(".unit-input").innerHTML=unitOptions([...new Set([...UNITS,...YIELD_UNITS])],String(item.unit??""));
+  row.oninput=prepDirty;
+  row.querySelector("button").onclick=()=>{
+    const next=row.nextElementSibling||row.previousElementSibling;
+    row.remove();
+    if(!$("preparationRows").children.length)addPreparationRow();
+    (next||$("preparationRows").firstElementChild).querySelector("input").focus();
+    prepDirty();
+  };
+  $("preparationRows").append(row);
+}
+function readPreparation(){
+  return {kind:"preparation",version:2,text:$("preparationText").value,rows:[...$("preparationRows").children].map(row=>({
+    name:row.querySelector(".name-input").value,
+    quantity:row.querySelector(".quantity-input").value,
+    unit:row.querySelector(".unit-input").value
+  })).filter(row=>row.name||row.quantity||row.unit)};
+}
+function restorePreparation(raw){
+  let record={text:raw||"",rows:[]};
+  try{
+    const parsed=JSON.parse(raw);
+    if(parsed?.kind==="preparation"&&parsed.version===2&&typeof parsed.text==="string"&&Array.isArray(parsed.rows))record=parsed;
+  }catch{/* Earlier versions stored plain text; preserve it unchanged. */}
+  $("preparationText").value=record.text;
+  $("preparationRows").replaceChildren();
+  record.rows.forEach(row=>addPreparationRow(row||{}));
+  if(!record.rows.length)addPreparationRow();
 }
 function deletePreparationMemo(){
   clearTimeout(prepFeedbackTimer);
@@ -707,7 +744,7 @@ function deletePreparationMemo(){
     // Remove legacy first so a failed deletion cannot resurrect an older memo next time.
     localStorage.removeItem(LEGACY_PREPARATION_KEY);
     localStorage.removeItem(PREPARATION_KEY);
-    $("preparationText").value="";
+    restorePreparation(null);
     preparationDirty=false;
     $("preparationSaveButton").textContent="保存";
     $("preparationStatus").textContent="仕込み内容を削除しました。";

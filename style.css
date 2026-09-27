@@ -210,7 +210,9 @@ textarea{resize:vertical;}
   position:absolute;left:0;right:0;bottom:0;top:6%;
   background:#fff;border-radius:20px 20px 0 0;
   padding:16px 18px calc(env(safe-area-inset-bottom) + 18px);
+  overflow-x:hidden;
   overflow-y:auto;
+  touch-action:pan-y pinch-zoom;
 }
 .modal-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
 .modal-heading h2{font-size:18px;margin:0;}
@@ -262,7 +264,8 @@ legend{font-size:13px;font-weight:700;}
 .stage-header input{flex-basis:150px;}
 .prep-actions{margin-top:12px;}
 .prep-actions button{min-height:48px;}
-#preparationText{min-height:280px;line-height:1.9;background:#fffefa;}
+#preparationText{min-height:120px;line-height:1.9;background:#fffefa;}
+#addPreparationRow{margin-top:12px;min-height:44px;}
 #preparationStatus{font-weight:700;}
 #deletePreparationDialog{max-width:min(420px,calc(100% - 32px));border:1px solid var(--border);border-radius:10px;padding:22px;color:var(--text);background:var(--bg);}
 #deletePreparationDialog::backdrop{background:rgba(0,0,0,.45);}
