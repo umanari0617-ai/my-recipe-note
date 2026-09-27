@@ -3,6 +3,7 @@
   --accent-dark:#783c19;
   --text:#302e28;
   --muted:#68675e;
+  --help-text:#527c68;
   --border:#dfded6;
   --bg:#f7f5f0;
   --bg-soft:#eeece5;
@@ -316,6 +317,7 @@ legend{font-size:13px;font-weight:700;}
 .filter-dropdown[open] summary{background:#e9ede4;border-color:#3f5b48;}
 .filter-panel{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:8;max-height:55vh;max-height:55svh;overflow-y:auto;overscroll-behavior:contain;padding:12px;border:1px solid var(--border);border-radius:8px;background:#fffefa;box-shadow:0 6px 18px #302e2826;}
 .filter-panel p{font-size:12px;color:var(--muted);margin:0 0 8px;}
+.header-copy p,.home-card>span:not(.home-card-icon),.task-note,.field-benefit-note,.field-help,.field-help summary,.support-card p,.resource-link small,.season-intro span,.filter-panel p{color:var(--help-text);}
 .filter-checks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
 .filter-checks label{margin:0;display:flex;align-items:center;gap:5px;min-height:44px;padding:7px 5px;border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:14px;cursor:pointer;}
 .filter-checks input{width:18px;height:18px;margin:0;flex:none;accent-color:#314e40;}
