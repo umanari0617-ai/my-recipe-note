@@ -10,7 +10,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <title>飲食店レシピノート</title>
 <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTIiIGZpbGw9IiMzMTRlNDAiLz48ZyBmaWxsPSJub25lIiBzdHJva2U9IiNmZmZkZjgiIHN0cm9rZS13aWR0aD0iMi42IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0zMiAxOXYzME0xMyAxN2M3LTIgMTMgMCAxOSA0IDYtNCAxMi02IDE5LTR2MjhjLTctMi0xMyAwLTE5IDQtNi00LTEyLTYtMTktNFoiLz48cGF0aCBkPSJtMTkgMjYgNyAybS03IDYgNyAybTEyLTggNy0ybS03IDEwIDctMiIvPjwvZz48L3N2Zz4K" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=1.3.1">
+<link rel="stylesheet" href="style.css?v=1.3.2">
 </head>
 <body>
 <header class="app-header">
@@ -174,7 +174,7 @@
       </div>
       <p class="task-note">レシピはこのブラウザ内に保存されます。別の端末には自動同期されません。仕込みメモは1件だけ保持し、レシピのバックアップには含まれません。</p>
     </div>
-    <p class="version-label">飲食店レシピノート / バージョン 1.3.1</p>
+    <p class="version-label">飲食店レシピノート / バージョン 1.3.2</p>
   </section>
 
   <section id="shopSettingsView" class="view task-view hidden" aria-label="お店設定">
@@ -244,8 +244,9 @@
         <textarea id="recipeSourceText" rows="4" placeholder="Excelや他のアプリからコピーした材料・分量・作り方を、そのまま貼り付けられます。"></textarea>
         <p id="attachmentStatus" class="task-note" role="status"></p>
       </div>
-      <fieldset><legend>月（任意・複数選択可）</legend><div id="recipeMonths" class="check-options"></div></fieldset>
-      <fieldset><legend>季節（任意・複数選択可）</legend><div id="recipeSeasons" class="check-options"></div></fieldset>
+      <p class="field-benefit-note">月・季節を設定すると、Myレシピ一覧で時期に合うレシピを絞り込めます。旬の食材を使うメニューや、来年の同じ時期に作りたいレシピを探すときに便利です。</p>
+      <fieldset aria-describedby="recipeMonthsHelp"><legend>月（任意・複数選択可）</legend><p id="recipeMonthsHelp" class="field-benefit-note">提供したい月や、食材を使いたい月を選びます。例：いちごのパンを出したい月、年末向けの料理を作る12月など。</p><div id="recipeMonths" class="check-options"></div></fieldset>
+      <fieldset aria-describedby="recipeSeasonsHelp"><legend>季節（任意・複数選択可）</legend><p id="recipeSeasonsHelp" class="field-benefit-note">月を決めずに「春のメニュー」「夏のお菓子」などでまとめたいときに使います。一年中使うレシピは「通年」を選べます。月・季節は必要な方だけ設定でき、未設定でも保存できます。</p><div id="recipeSeasons" class="check-options"></div></fieldset>
       <label for="recipeYieldQuantity">このレシピの基準量</label>
       <div class="yield-inputs"><input id="recipeYieldQuantity" type="number" inputmode="decimal" min="0.001" step="any" value="1" required><select id="recipeYieldUnit" aria-label="基準量の単位"></select></div>
       <div id="recipeYieldCustomWrap" class="hidden"><label for="recipeYieldCustom">単位を入力</label><input id="recipeYieldCustom" type="text" maxlength="30" placeholder="例：天板、ケース"></div>
@@ -270,6 +271,6 @@
   </div>
 </div>
 
-<script src="script.js?v=1.3.1"></script>
+<script src="script.js?v=1.3.2"></script>
 </body>
 </html>
