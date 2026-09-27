@@ -173,6 +173,21 @@ textarea{resize:vertical;}
 .form-actions{display:flex;gap:10px;margin-top:22px;}
 .error-message{color:var(--danger);font-size:14px;min-height:18px;margin:10px 0 0;}
 
+/* Keep each field together, with larger gaps between recipe sections. */
+#recipeForm>label{margin:28px 0 8px;}
+#recipeForm>label[for=recipeName]{margin-top:16px;}
+#recipeForm>label[for=recipeYieldQuantity],#recipeForm>label:not([for]),#recipeForm>label[for=recipeCookedDate]{margin-top:40px;}
+#recipeForm>.task-note{margin:8px 0 0;}
+#recipeForm>.field-help{margin-top:4px;}
+#recipeForm #recipeSeasonHelp{margin:40px 0 12px;}
+#recipeForm>fieldset{margin:12px 0 20px;}
+#recipeForm>.import-panel{margin:40px 0 0;}
+#recipeForm>.form-actions{margin-top:28px;}
+#recipeForm .stages-container{gap:24px;}
+#recipeForm .stage-block label{margin:24px 0 8px;}
+#recipeForm .stage-block label:first-of-type{margin-top:16px;}
+#recipeForm .add-ingredient-row,#recipeForm #addStageButton{margin-top:10px;}
+
 .stages-container{display:flex;flex-direction:column;gap:14px;}
 .stage-block{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--bg-soft);}
 .stage-header{display:flex;gap:8px;align-items:center;}
