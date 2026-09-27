@@ -185,7 +185,8 @@ function bind(){
   $("confirmPreparationDelete").onclick=deletePreparationMemo;
   $("recipeYieldUnit").onchange=syncYieldCustom;
   bindFilterControls();
-  $("manageCategories").onclick=()=>{renderCategoryEditList();showView("categoryEditView");};
+  $("manageCategories").onclick=()=>{backTargets.categoryEditView="settingsView";renderCategoryEditList();showView("categoryEditView");};
+  $("addRecipeCategory").onclick=addRecipeCategory;
   $("openSupport").onclick=()=>showView("supportView");
   document.querySelectorAll("[data-import-recipe]").forEach(b=>b.onclick=()=>{openRecipeForm(null);const target=b.dataset.importRecipe==="images"?$("recipeAttachmentsInput"):$("recipeSourceText");target.focus();target.scrollIntoView({block:"center"});});
   $("recipeSearch").oninput=renderRecipeList;
@@ -421,9 +422,22 @@ function addCategory(){
   if(!name)return;
   if(state.categories.some(c=>c.name===name)){alert("同じ名前のカテゴリがすでにあります。");return;}
   state.categories.push({id:id(),name});
+  if(!save())return;
   input.value="";
-  save();
   renderCategoryEditList();
+}
+
+function addRecipeCategory(){
+  const name=prompt("新しいカテゴリー名を入力してください（20文字以内）。")?.trim();
+  if(!name)return;
+  if(name.length>20){alert("カテゴリー名は20文字以内で入力してください。");return;}
+  if(state.categories.some(c=>c.name===name)){alert("同じ名前のカテゴリーがすでにあります。");return;}
+  const category={id:id(),name};
+  state.categories.push(category);
+  if(!save())return;
+  $("recipeCategory").add(new Option(category.name,category.id));
+  $("recipeCategory").value=category.id;
+  $("recipeCategory").focus();
 }
 
 /* ---------- data management ---------- */
