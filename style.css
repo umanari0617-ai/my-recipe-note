@@ -328,6 +328,8 @@ legend{font-size:13px;font-weight:700;}
 .filter-dropdown{min-width:0;}
 .filter-dropdown summary{display:block;list-style:none;padding:12px 8px;min-height:46px;border:1px solid var(--border);border-radius:6px;background:#fff;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .filter-dropdown summary::-webkit-details-marker{display:none;}
+#recipeSearch::placeholder{color:#748078;opacity:1;}
+.filter-dropdown summary.filter-placeholder{color:#748078;font-weight:400;}
 .filter-dropdown summary:focus-visible{outline:3px solid #3f6653;outline-offset:2px;}
 .filter-dropdown[open] summary{background:#e9ede4;border-color:#3f5b48;}
 .filter-panel{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:8;max-height:55vh;max-height:55svh;overflow-y:auto;overscroll-behavior:contain;padding:12px;border:1px solid var(--border);border-radius:8px;background:#fffefa;box-shadow:0 6px 18px #302e2826;}

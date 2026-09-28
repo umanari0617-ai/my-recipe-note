@@ -315,7 +315,7 @@ function renderRecipeList(){
   const normalize=v=>String(v||"").normalize("NFKC").toLocaleLowerCase();
   const terms=normalize($("recipeSearch").value).trim().split(/\s+/).filter(Boolean);
   const recipes=state.recipes.filter(r=>{
-    const haystack=normalize([r.name,...(r.stages||[]).flatMap(s=>s.ingredients.map(i=>i.name))].join(" "));
+    const haystack=normalize(r.name);
     return (currentCategoryId===null||(currentCategoryId===""?!r.categoryId:r.categoryId===currentCategoryId))&&matchesTags(r.months,selectedMonths,MONTHS)&&matchesTags(r.seasons,selectedSeasons,SEASONS)&&terms.every(t=>haystack.includes(t));
   });
   $("recipeResultCount").textContent=recipes.length+"件";
@@ -879,8 +879,10 @@ function filterLabel(selected,domain,kind){
   return ordered.map(v=>v==="unset"?"未設定":kind==="月"?v+"月":v).join("・");
 }
 function updateFilterSummaries(){
-  $("monthSummary").textContent=filterLabel(selectedMonths,MONTHS,"月")+" ▾";
-  $("seasonSummary").textContent=filterLabel(selectedSeasons,SEASONS,"季節")+" ▾";
+  $("monthSummary").textContent=(selectedMonths.length?filterLabel(selectedMonths,MONTHS,"月"):"月で検索")+" ▾";
+  $("seasonSummary").textContent=(selectedSeasons.length?filterLabel(selectedSeasons,SEASONS,"季節"):"季節で検索")+" ▾";
+  $("monthSummary").classList.toggle("filter-placeholder",!selectedMonths.length);
+  $("seasonSummary").classList.toggle("filter-placeholder",!selectedSeasons.length);
 }
 function bindFilterControls(){
   [["monthFilters","months"],["seasonFilters","seasons"]].forEach(([id,kind])=>{
