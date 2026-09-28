@@ -150,6 +150,9 @@ function init(){
 }
 
 function bind(){
+  $("shareRecipeButton").onclick=shareCurrentRecipe;
+  $("pdfRecipeButton").onclick=previewRecipePdf;
+  $("printRecipeButton").onclick=printRecipePdf;
   $("openShopSettings").onclick=()=>openShopSettings("settingsView");
   $("shopSettingsNext").onclick=previewShopCategories;
   $("shopSettingsPrevious").onclick=()=>{
@@ -244,6 +247,7 @@ function bind(){
 }
 
 function showView(name){
+  document.body.classList.toggle("recipe-print-preview",name==="recipePrintView");
   document.querySelectorAll(".view").forEach(v=>v.classList.add("hidden"));
   $(name).classList.remove("hidden");
   currentView=name;
@@ -334,6 +338,7 @@ function openRecipeDetail(rid){
   const r=findRecipe(rid);
   if(!r)return;
   currentRecipeId=rid;
+  $("recipeExportStatus").textContent="";
   $("detailPhotoWrap").classList.toggle("hidden",!r.photo);
   if(r.photo)$("detailPhoto").src=r.photo;
   $("detailName").textContent=r.name;
@@ -376,6 +381,88 @@ function renderDetailStages(r){
     const stepsHtml=steps.length?`<h4>作り方</h4><ol class="steps-list">${steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`:"";
     return `<div class="detail-stage">${nameHtml}${ingHtml}${stepsHtml}</div>`;
   }).join("");
+}
+function recipeExportData(){
+  const recipe=findRecipe(currentRecipeId);
+  if(!recipe)return null;
+  const base=recipeYield(recipe);
+  const quantity=Number($("detailYieldQuantity").value),unit=$("detailYieldUnit").value||base.unit;
+  if(!Number.isFinite(quantity)||quantity<=0){
+    $("recipeExportStatus").textContent="共有・PDF保存の前に、0より大きい必要量を入力してください。";
+    $("detailYieldQuantity").focus();return null;
+  }
+  $("recipeExportStatus").textContent="";
+  return {recipe,base,quantity,unit,ratio:quantity*unitFactor(unit)/(base.quantity*unitFactor(base.unit))};
+}
+function recipeShareText(data){
+  const {recipe:r,base,quantity,unit,ratio}=data;
+  const lines=[r.name,"分量："+formatNumber(quantity)+unit];
+  if(ratio!==1)lines.push("元の基準量："+base.quantity+base.unit);
+  if(r.cookTime)lines.push("調理時間："+r.cookTime);
+  for(const [index,stage] of (r.stages||[]).entries()){
+    lines.push("",stage.groupName||"工程 "+(index+1));
+    if(stage.ingredients?.length)lines.push("【材料】",...stage.ingredients.map(i=>[i.name,ingredientAmount(i,ratio)].filter(Boolean).join("　")));
+    if(stage.instruction)lines.push("【作り方】",stage.instruction);
+  }
+  if(r.memo)lines.push("","【メモ】",r.memo);
+  if(r.sourceText)lines.push("","【取り込んだレシピ】",r.sourceText);
+  if(r.attachments?.length)lines.push("","※ 添付画像は文章の共有には含まれません。PDF保存で確認できます。");
+  return lines.join("\n");
+}
+async function shareCurrentRecipe(){
+  const data=recipeExportData();if(!data)return;
+  const text=recipeShareText(data);
+  $("recipeExportStatus").textContent="";
+  if(navigator.share){
+    try{await navigator.share({title:data.recipe.name,text});return;}
+    catch(error){if(error.name==="AbortError")return;}
+  }
+  showRecipeCopy(text);
+}
+function showRecipeCopy(text){
+  let dialog=$("recipeCopyDialog");
+  if(!dialog){
+    dialog=document.createElement("dialog");dialog.id="recipeCopyDialog";
+    dialog.setAttribute("aria-labelledby","recipeCopyTitle");
+    dialog.innerHTML='<h2 id="recipeCopyTitle">レシピを共有</h2><p class="task-note">文章をコピーし、LINEやメールに貼り付けて送れます。</p><label for="recipeCopyText">共有する文章</label><textarea id="recipeCopyText" rows="12" readonly></textarea><p id="recipeCopyStatus" class="task-status" role="status"></p><div class="form-actions"><button id="copyRecipeTextButton" type="button" class="primary-button">文章をコピー</button><button id="closeRecipeCopyButton" type="button" class="secondary-button">閉じる</button></div>';
+    document.body.append(dialog);
+    $("closeRecipeCopyButton").onclick=()=>dialog.close();
+    $("copyRecipeTextButton").onclick=async()=>{
+      try{await navigator.clipboard.writeText($("recipeCopyText").value);$("recipeCopyStatus").textContent="コピーしました。LINEやメールに貼り付けてください。";}
+      catch{$("recipeCopyText").focus();$("recipeCopyText").select();$("recipeCopyStatus").textContent="文章を長押し、または Ctrl+C でコピーしてください。";}
+    };
+  }
+  $("recipeCopyText").value=text;$("recipeCopyStatus").textContent="";dialog.showModal();
+}
+function previewRecipePdf(){
+  const data=recipeExportData();if(!data)return;
+  const {recipe:r,base,quantity,unit,ratio}=data;
+  const photo=src=>/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(src||"")?'<img src="'+esc(src)+'" alt="レシピの画像">':"";
+  let html='<h1>'+esc(r.name)+'</h1><p>分量：'+esc(formatNumber(quantity)+unit)+'</p>';
+  if(ratio!==1)html+='<p>元の基準量：'+esc(base.quantity+base.unit)+'</p>';
+  if(r.cookTime)html+='<p>調理時間：'+esc(r.cookTime)+'</p>';
+  html+=photo(r.photo);
+  for(const [index,stage] of (r.stages||[]).entries()){
+    html+='<section><h2>'+esc(stage.groupName||"工程 "+(index+1))+'</h2>';
+    if(stage.ingredients?.length)html+='<h3>材料</h3><ul>'+stage.ingredients.map(i=>'<li>'+esc([i.name,ingredientAmount(i,ratio)].filter(Boolean).join("　"))+'</li>').join("")+'</ul>';
+    if(stage.instruction)html+='<h3>作り方</h3><p class="print-text">'+esc(stage.instruction)+'</p>';
+    html+='</section>';
+  }
+  if(r.memo)html+='<section><h2>メモ</h2><p class="print-text">'+esc(r.memo)+'</p></section>';
+  if(r.sourceText)html+='<section><h2>取り込んだレシピ</h2><p class="print-text">'+esc(r.sourceText)+'</p></section>';
+  if(r.attachments?.length)html+='<section><h2>添付レシピ</h2>'+r.attachments.map(photo).join("")+'</section>';
+  $("recipePrintContent").innerHTML=html;
+  $("printRecipeStatus").textContent="";
+  backTargets.recipePrintView="recipeDetailView";
+  showView("recipePrintView");$("headerTitle").textContent="PDF保存";
+}
+async function printRecipePdf(){
+  const button=$("printRecipeButton");button.disabled=true;
+  try{
+    await Promise.all([...$("recipePrintContent").querySelectorAll("img")].map(img=>img.decode()));
+    window.print();
+  }catch{$("printRecipeStatus").textContent="印刷画面を開けませんでした。画像の読み込みを確認し、もう一度お試しください。";}
+  finally{button.disabled=false;}
 }
 function deleteCurrentRecipe(){
   const r=findRecipe(currentRecipeId);
