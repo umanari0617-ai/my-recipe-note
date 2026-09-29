@@ -763,6 +763,7 @@ function openShopSettings(returnView){
   $("shopCategoryStep").classList.add("hidden");
   $("shopSettingsStatus").textContent="";
   $("skipShopSettings").textContent=returnView==="homeView"?"あとで設定する":"変更せず戻る";
+  $("shopSettingsSave").textContent=returnView==="homeView"?"この内容で始める":"変更を保存";
   showView("shopSettingsView");
 }
 function previewShopCategories(){
@@ -775,7 +776,7 @@ function previewShopCategories(){
     return '<label><input type="checkbox" value="'+esc(name)+'" checked'+(protectedCategory?' disabled':'')+'><span>'+esc(name)+(existing?'（登録済み）':'')+'</span></label>';
   }).join(""):'<p class="task-note">カテゴリーは追加しません。設定の「カテゴリー管理」から自由に作成できます。</p>';
   const units=orderedShopUnits(UNITS,industries).filter(Boolean).slice(0,4);
-  $("shopUnitPreview").textContent="単位の表示順："+units.join("、")+" …";
+  $("shopUnitPreview").textContent="よく使う単位："+units.join("、")+"…";
   $("shopIndustryStep").classList.add("hidden");
   $("shopCategoryStep").classList.remove("hidden");
   $("shopSettingsStatus").textContent="";
