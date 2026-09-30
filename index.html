@@ -238,8 +238,18 @@
     <div class="modal-heading"><h2 id="recipeFormTitle">レシピを追加</h2><button class="icon-button" data-close="recipeForm" type="button" aria-label="閉じる">×</button></div>
     <form id="recipeForm">
       <input type="hidden" id="recipeId">
+      <p class="task-note recipe-form-guide">まずは「料理名」を入力し、下の「工程」に材料と作り方を書いてください。「任意」の項目は空欄のままでも保存できます。</p>
       <label for="recipeName" class="required-label">料理名 <span class="required-badge">必須</span></label>
       <input id="recipeName" type="text" placeholder="例：基本の照り焼きダレ" required>
+
+      <label for="recipeYieldQuantity" class="required-label">このレシピの基準量 <span class="required-badge">必須</span></label>
+      <div class="yield-inputs"><input id="recipeYieldQuantity" type="number" inputmode="decimal" min="0.001" step="any" value="1" required><select id="recipeYieldUnit" aria-label="基準量の単位"></select></div>
+      <div id="recipeYieldCustomWrap" class="hidden"><label for="recipeYieldCustom" class="required-label">単位を入力 <span class="required-badge">必須</span></label><input id="recipeYieldCustom" type="text" maxlength="30" placeholder="例：天板、ケース"></div>
+      <p class="task-note">例：30人前、1バット、2鍋。小数も入力できます。詳細画面で必要量に換算できます。</p>
+
+      <label>工程（材料と作り方）</label>
+      <div id="stagesContainer" class="stages-container"></div>
+      <button id="addStageButton" class="secondary-button small-button" type="button">＋ 工程を追加</button>
 
       <label for="recipeCategory">カテゴリー（任意）</label>
       <div class="recipe-category-row"><select id="recipeCategory"></select><button id="addRecipeCategory" class="secondary-button" type="button">＋追加</button></div>
@@ -251,15 +261,6 @@
         <input id="recipePhotoInput" type="file" accept="image/*">
         <button id="removePhotoButton" class="secondary-button small-button hidden" type="button">写真を削除</button>
       </div>
-
-      <label for="recipeYieldQuantity" class="required-label">このレシピの基準量 <span class="required-badge">必須</span></label>
-      <div class="yield-inputs"><input id="recipeYieldQuantity" type="number" inputmode="decimal" min="0.001" step="any" value="1" required><select id="recipeYieldUnit" aria-label="基準量の単位"></select></div>
-      <div id="recipeYieldCustomWrap" class="hidden"><label for="recipeYieldCustom" class="required-label">単位を入力 <span class="required-badge">必須</span></label><input id="recipeYieldCustom" type="text" maxlength="30" placeholder="例：天板、ケース"></div>
-      <p class="task-note">例：30人前、1バット、2鍋。小数も入力できます。詳細画面で必要量に換算できます。</p>
-
-      <label>工程（材料と作り方）</label>
-      <div id="stagesContainer" class="stages-container"></div>
-      <button id="addStageButton" class="secondary-button small-button" type="button">＋ 工程を追加</button>
 
       <p id="recipeSeasonHelp" class="field-benefit-note season-help">月・季節を選ぶと、時期に合うレシピを探せます。一年中使うなら「通年」、未設定でも保存できます。</p>
       <fieldset aria-describedby="recipeSeasonHelp"><legend>月（任意・複数選択可）</legend><div id="recipeMonths" class="check-options"></div></fieldset>
