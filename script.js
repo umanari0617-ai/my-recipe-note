@@ -272,10 +272,7 @@ function bind(){
     $("shopSettingsStatus").textContent="";
   };
   $("shopSettingsForm").onsubmit=saveShopSettings;
-  $("skipShopSettings").onclick=()=>{
-    if(!state.shopSettings?.completed){state.shopSettings={completed:true,industries:[]};if(!save())return;}
-    updateShopSettingsSummary();showView(shopSettingsReturnView);
-  };
+  $("skipShopSettings").onclick=leaveShopSettings;
   document.querySelectorAll("[data-home-action]").forEach(card=>{
     card.onclick=()=>{
       const action=card.dataset.homeAction;
@@ -296,6 +293,8 @@ function bind(){
     };
   });
   $("backButton").onclick=()=>{
+    // Leaving first-run setup by "‹" must count as "あとで設定する", or setup reappears on every launch.
+    if(currentView==="shopSettingsView"){leaveShopSettings();return;}
     const target=backTargets[currentView];
     if(target){
       if(target==="categoryView")renderCategoryList();
@@ -883,6 +882,10 @@ function openShopSettings(returnView){
   $("skipShopSettings").textContent=returnView==="homeView"?"あとで設定する":"変更せず戻る";
   $("shopSettingsSave").textContent=returnView==="homeView"?"この内容で始める":"変更を保存";
   showView("shopSettingsView");
+}
+function leaveShopSettings(){
+  if(!state.shopSettings?.completed){state.shopSettings={completed:true,industries:[]};if(!save())return;}
+  updateShopSettingsSummary();showView(shopSettingsReturnView);
 }
 function previewShopCategories(){
   const industries=checkedValues("shopIndustryOptions");
