@@ -10,7 +10,13 @@ let preparationTimer;
 let preparationDirty=false;
 let appInitialized=false;
 
-let state=load();
+/* Photos live in IndexedDB; localStorage keeps only "idb:<key>" references. */
+const IMAGE_DB="recipeNoteImages",IMAGE_STORE="images",IMAGE_REF="idb:";
+let imageDb=null;
+const imageCache=new Map(),imageKeys=new Map();
+let loadProblem=false;
+
+let state=defaultState();
 let currentCategoryId=null;
 let currentRecipeId=null;
 let currentView="homeView";
@@ -43,12 +49,15 @@ function defaultState(){
 }
 function load(){
   let raw;
-  try{raw=localStorage.getItem(KEY);}catch{alert("ブラウザの保存領域を利用できません。保存設定をご確認ください。");return defaultState();}
+  try{raw=localStorage.getItem(KEY);}catch{loadProblem=true;alert("ブラウザの保存領域を利用できません。保存設定をご確認ください。");return defaultState();}
   if(!raw)return defaultState();
+  loadProblem=true;
   try{
     const x=JSON.parse(raw);
     if(x&&Array.isArray(x.categories)&&Array.isArray(x.recipes)){
       migrateRecipes(x);
+      resolveImageRefs(x);
+      loadProblem=false;
       return x;
     }
     saveBrokenCopy(raw);
@@ -88,13 +97,116 @@ function migrateRecipes(x){
 }
 function save(){
   try{
-    localStorage.setItem(KEY,JSON.stringify(state));
+    localStorage.setItem(KEY,serializeState(state));
     return true;
   }catch(e){
     state=load();
     alert("データの保存に失敗しました。空き容量が足りない可能性があります。写真の枚数を減らすか、不要なレシピを削除してから、もう一度お試しください。\nエラー内容："+(e&&e.message?e.message:e));
     return false;
   }
+}
+
+/* ---------- photo storage (IndexedDB) ---------- */
+function rememberImage(key,url){imageCache.set(key,url);imageKeys.set(url,key);}
+function isInlineImage(v){return typeof v==="string"&&v.startsWith("data:image/");}
+function recipeImages(s){return s.recipes.flatMap(r=>[r.photo,...(Array.isArray(r.attachments)?r.attachments:[])]).filter(Boolean);}
+function serializeState(s){
+  return JSON.stringify(s,(k,v)=>typeof v==="string"&&imageKeys.has(v)?IMAGE_REF+imageKeys.get(v):v);
+}
+function resolveImageRefs(x){
+  // Unresolved refs are kept as-is so a later save never drops them.
+  let missing=0;
+  const resolve=v=>{
+    if(typeof v!=="string"||!v.startsWith(IMAGE_REF))return v;
+    const url=imageCache.get(v.slice(IMAGE_REF.length));
+    if(url)return url;
+    missing++;return v;
+  };
+  x.recipes.forEach(r=>{
+    if(r.photo)r.photo=resolve(r.photo);
+    if(Array.isArray(r.attachments))r.attachments=r.attachments.map(resolve);
+  });
+  return missing;
+}
+function idbRequest(req){return new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});}
+function openImageDb(){
+  return new Promise(resolve=>{
+    let done=false;
+    const finish=db=>{if(!done){done=true;resolve(db);}else db?.close();};
+    if(!window.indexedDB)return finish(null);
+    setTimeout(()=>finish(null),5000);
+    try{
+      const req=indexedDB.open(IMAGE_DB,1);
+      req.onupgradeneeded=()=>req.result.createObjectStore(IMAGE_STORE);
+      req.onsuccess=()=>finish(req.result);
+      req.onerror=()=>finish(null);
+    }catch{finish(null);}
+  });
+}
+async function loadImageCache(){
+  imageDb=await openImageDb();
+  if(!imageDb)return;
+  try{
+    const store=imageDb.transaction(IMAGE_STORE,"readonly").objectStore(IMAGE_STORE);
+    const [keys,values]=await Promise.all([idbRequest(store.getAllKeys()),idbRequest(store.getAll())]);
+    keys.forEach((key,i)=>rememberImage(key,values[i]));
+  }catch{imageDb=null;}
+}
+/* Resolves true when every inline image is in IndexedDB; false means they stay inline in localStorage. */
+function putImages(urls){
+  const pending=[...new Set(urls)].filter(url=>isInlineImage(url)&&!imageKeys.has(url));
+  if(!pending.length)return Promise.resolve(true);
+  if(!imageDb)return Promise.resolve(false);
+  return new Promise(resolve=>{
+    try{
+      const entries=pending.map(url=>[id(),url]);
+      const tx=imageDb.transaction(IMAGE_STORE,"readwrite");
+      const store=tx.objectStore(IMAGE_STORE);
+      entries.forEach(([key,url])=>store.put(url,key));
+      tx.oncomplete=()=>{entries.forEach(([key,url])=>rememberImage(key,url));resolve(true);};
+      tx.onerror=tx.onabort=()=>resolve(false);
+    }catch{resolve(false);}
+  });
+}
+function referencedImageKeys(){
+  const used=new Set(recipeImages(state).map(v=>imageKeys.get(v)||(String(v).startsWith(IMAGE_REF)?String(v).slice(IMAGE_REF.length):"")).filter(Boolean));
+  // Keep images referenced by broken-data copies so they can still be recovered.
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const name=localStorage.key(i);
+      if(!name?.startsWith(KEY+"_broken_"))continue;
+      for(const m of (localStorage.getItem(name)||"").matchAll(/"idb:([^"]+)"/g))used.add(m[1]);
+    }
+  }catch{return null;}
+  return used;
+}
+function removeUnusedImages(){
+  if(!imageDb||loadProblem)return;
+  const used=referencedImageKeys();
+  if(!used)return;
+  const unused=[...imageCache.keys()].filter(key=>!used.has(key));
+  if(!unused.length)return;
+  try{
+    const tx=imageDb.transaction(IMAGE_STORE,"readwrite");
+    const store=tx.objectStore(IMAGE_STORE);
+    unused.forEach(key=>store.delete(key));
+    tx.oncomplete=()=>unused.forEach(key=>{imageKeys.delete(imageCache.get(key));imageCache.delete(key);});
+  }catch{}
+}
+async function moveInlineImagesToDb(){
+  const inline=recipeImages(state).filter(isInlineImage);
+  if(!inline.length||!imageDb)return;
+  if(await putImages(inline))save();
+}
+async function startApp(){
+  await loadImageCache();
+  state=load();
+  const missing=loadProblem?0:recipeImages(state).filter(v=>String(v).startsWith(IMAGE_REF)).length;
+  // Clean up before any user action so an in-flight save can never lose its new images.
+  if(!missing)removeUnusedImages();
+  init();
+  if(missing)alert("一部の写真を読み込めませんでした（"+missing+"枚）。レシピの文章や材料はそのまま残っています。");
+  moveInlineImagesToDb();
 }
 function id(){return crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2);}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -553,12 +665,13 @@ function importBackup(e){
   const file=e.target.files[0];
   if(!file)return;
   const reader=new FileReader();
-  reader.onload=()=>{
+  reader.onload=async()=>{
     try{
       const x=JSON.parse(reader.result);
       if(!Array.isArray(x.categories)||!Array.isArray(x.recipes))throw 0;
       if(!confirm("現在のデータを、バックアップファイルの内容に置き換えますか？\nこの操作は取り消せません。"))return;
       migrateRecipes(x);
+      await putImages(recipeImages(x));
       state=x;
       if(!save())return;
       currentCategoryId=null;
@@ -693,7 +806,7 @@ function compressImage(file,maxWidth=1000,quality=0.75){
     reader.readAsDataURL(file);
   });
 }
-function saveRecipeForm(e){
+async function saveRecipeForm(e){
   e.preventDefault();if(imageJobs)return;
   const name=$("recipeName").value.trim();
   if(!name){$("recipeFormError").textContent="料理名を入力してください。";return;}
@@ -705,10 +818,15 @@ function saveRecipeForm(e){
   const stages=formStages.map(s=>({groupName:s.groupName.trim(),ingredients:s.ingredients.map(i=>({...parseIngredient(i),name:i.name.trim(),amount:ingredientAmount(i,1)})).filter(i=>i.name),instruction:s.instruction.trim()})).filter(s=>s.groupName||s.ingredients.length||s.instruction);
   const data={name,categoryId,photo:formPhoto,attachments:[...formAttachments],sourceText:$("recipeSourceText").value,months:checkedValues("recipeMonths"),seasons:checkedValues("recipeSeasons"),yield:{quantity,unit},stages,cookedDate:$("recipeCookedDate").value,cookTime:$("recipeCookTime").value.trim(),memo:$("recipeMemo").value.trim()};
   const existingId=$("recipeId").value;
+  const session=formSession;
+  imageJobs++;setImageBusy();
+  await putImages([data.photo,...data.attachments]);
+  if(session!==formSession)return;
+  imageJobs--;setImageBusy();
   const next=JSON.parse(JSON.stringify(state));
   if(existingId){const r=next.recipes.find(r=>r.id===existingId);Object.assign(r,data);delete r.rating;}
   else next.recipes.push({id:id(),...data});
-  try{localStorage.setItem(KEY,JSON.stringify(next));}catch{
+  try{localStorage.setItem(KEY,serializeState(next));}catch{
     $("recipeFormError").textContent="保存できませんでした。入力内容は残っています。画像を減らすか、端末の空き容量を確認してください。";return;
   }
   state=next;closeModal("recipeForm");
@@ -991,4 +1109,4 @@ function bindFilterControls(){
   document.addEventListener("click",e=>{if(!e.target.closest(".filter-bar"))dropdowns.forEach(d=>d.open=false);});
   document.addEventListener("keydown",e=>{if(e.key==="Escape")dropdowns.forEach(d=>{if(d.open){d.open=false;d.querySelector("summary").focus();}});});
 }
-init();
+startApp();
