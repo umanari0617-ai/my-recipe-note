@@ -3,6 +3,13 @@ const PREPARATION_KEY="todayPrepMemo";
 const LEGACY_PREPARATION_KEY="restaurantRecipeNoteTodayV1";
 const $=id=>document.getElementById(id);
 
+/* Purchase unlock is a device entitlement, not recipe data: kept out of `state` so backup export/import never touches it. */
+const PURCHASE_KEY="recipeNoteUnlocked";
+const FREE_RECIPE_LIMIT=20;
+const PURCHASE_PRICE_LABEL="800円";
+let purchaseUnlocked=false;
+let purchaseBusy=false;
+
 const SERVING_MULT={"1人前":1,"5人前":5,"10人前":10,"1回分":1,"1.5回分":1.5,"2回分":2};
 const backTargets={categoryView:"homeView",recipeDetailView:"categoryView",categoryEditView:"categoryView",settingsView:"homeView",supportView:"settingsView",preparationView:"homeView",seasonView:"homeView"};
 let preparationDay="";
@@ -201,6 +208,7 @@ async function moveInlineImagesToDb(){
   if(await putImages(inline))save();
 }
 async function startApp(){
+  purchaseUnlocked=loadPurchaseStatus();
   await loadImageCache();
   state=load();
   const missing=loadProblem?0:recipeImages(state).filter(v=>String(v).startsWith(IMAGE_REF)).length;
@@ -212,6 +220,86 @@ async function startApp(){
 }
 function id(){return crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2);}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+
+/* ---------- purchase (free tier limit + IAP bridge) ---------- */
+function loadPurchaseStatus(){
+  try{return localStorage.getItem(PURCHASE_KEY)==="1";}catch{return false;}
+}
+function savePurchaseStatus(unlocked){
+  purchaseUnlocked=unlocked;
+  try{localStorage.setItem(PURCHASE_KEY,unlocked?"1":"0");}catch{}
+}
+function canAddRecipe(){return purchaseUnlocked||state.recipes.length<FREE_RECIPE_LIMIT;}
+function openNewRecipeForm(){
+  if(!canAddRecipe()){openPurchaseModal();return false;}
+  openRecipeForm(null);
+  return true;
+}
+function openPurchaseModal(){
+  renderPurchaseSummary();
+  $("purchaseStatus").textContent="";
+  openModal("purchase");
+}
+function renderPurchaseSummary(){
+  const count=state.recipes.length;
+  $("purchaseSummary").textContent=purchaseUnlocked?"購入済みです。登録できるレシピ件数の上限はありません。":`無料版：レシピは${FREE_RECIPE_LIMIT}件まで登録できます（現在${count}件）。`;
+  $("purchaseRecipeCount").textContent=purchaseUnlocked?"購入済みです。":`現在の登録件数：${count} / ${FREE_RECIPE_LIMIT}件`;
+  $("openPurchaseButton").textContent=purchaseUnlocked?"プレミアムの詳細":`プレミアムにアップグレード（${PURCHASE_PRICE_LABEL}）`;
+  $("purchaseBuyButton").classList.toggle("hidden",purchaseUnlocked);
+}
+function setPurchaseBusy(){
+  $("purchaseBuyButton").disabled=purchaseBusy;
+  $("purchaseRestoreButton").disabled=purchaseBusy;
+}
+/* Posts to the native iOS wrapper's WKScriptMessageHandler (registered as "purchase"); returns false when no native bridge is present, e.g. plain browser testing. */
+function postToNative(action){
+  const handler=window.webkit?.messageHandlers?.purchase;
+  if(!handler)return false;
+  try{handler.postMessage({action});return true;}
+  catch{return false;}
+}
+function requestPurchase(){
+  if(purchaseBusy||purchaseUnlocked)return;
+  purchaseBusy=true;setPurchaseBusy();
+  $("purchaseStatus").textContent="";
+  if(!postToNative("purchase")){
+    purchaseBusy=false;setPurchaseBusy();
+    $("purchaseStatus").textContent="このアプリ版では購入できません。App Store版でお試しください。";
+  }
+}
+function requestRestore(){
+  if(purchaseBusy)return;
+  purchaseBusy=true;setPurchaseBusy();
+  $("purchaseStatus").textContent="";
+  if(!postToNative("restore")){
+    purchaseBusy=false;setPurchaseBusy();
+    $("purchaseStatus").textContent="このアプリ版では復元できません。App Store版でお試しください。";
+  }
+}
+/* The following are called from Swift via evaluateJavaScript after StoreKit confirms a result. */
+window.onPurchaseUnlocked=function(){
+  purchaseBusy=false;
+  savePurchaseStatus(true);
+  setPurchaseBusy();
+  $("purchaseStatus").textContent="購入が完了しました。登録件数の上限はありません。";
+  renderPurchaseSummary();
+};
+window.onPurchaseRestored=function(found){
+  purchaseBusy=false;
+  if(found){
+    savePurchaseStatus(true);
+    $("purchaseStatus").textContent="購入内容を復元しました。";
+  }else{
+    $("purchaseStatus").textContent="復元できる購入が見つかりませんでした。";
+  }
+  setPurchaseBusy();
+  renderPurchaseSummary();
+};
+window.onPurchaseFailed=function(message){
+  purchaseBusy=false;
+  setPurchaseBusy();
+  $("purchaseStatus").textContent=message||"購入処理を完了できませんでした。もう一度お試しください。";
+};
 
 function formatNumber(n){
   const rounded=Math.round(n*100)/100;
@@ -282,7 +370,7 @@ function bind(){
         renderCategoryList();
         showView("categoryView");
       }else if(action==="new"){
-        openRecipeForm(null);
+        openNewRecipeForm();
       }else if(action==="preparation"){
         refreshPreparationDate();
         showView("preparationView");
@@ -318,12 +406,16 @@ function bind(){
   $("manageCategories").onclick=()=>{backTargets.categoryEditView="settingsView";renderCategoryEditList();showView("categoryEditView");};
   $("addRecipeCategory").onclick=addRecipeCategory;
   $("openSupport").onclick=()=>showView("supportView");
-  document.querySelectorAll("[data-import-recipe]").forEach(b=>b.onclick=()=>{openRecipeForm(null);const target=b.dataset.importRecipe==="images"?$("recipeAttachmentsInput"):$("recipeSourceText");target.focus();target.scrollIntoView({block:"center"});});
+  document.querySelectorAll("[data-import-recipe]").forEach(b=>b.onclick=()=>{if(!openNewRecipeForm())return;const target=b.dataset.importRecipe==="images"?$("recipeAttachmentsInput"):$("recipeSourceText");target.focus();target.scrollIntoView({block:"center"});});
   $("recipeSearch").oninput=renderRecipeList;
   $("clearRecipeFilters").onclick=()=>{selectedMonths=[];selectedSeasons=[];currentCategoryId=null;$("recipeSearch").value="";renderFilters();renderCategoryList();};
   $("recipeAttachmentsInput").onchange=onAttachmentsChange;
   renderFilters();
-  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("recipeFormModal").classList.contains("hidden"))closeModal("recipeForm");});
+  document.addEventListener("keydown",e=>{
+    if(e.key!=="Escape")return;
+    if(!$("recipeFormModal").classList.contains("hidden"))closeModal("recipeForm");
+    else if(!$("purchaseModal").classList.contains("hidden"))closeModal("purchase");
+  });
   const resume=()=>{refreshPreparationDate();schedulePreparationDate();};
   window.addEventListener("focus",resume);
   window.addEventListener("pageshow",resume);
@@ -341,11 +433,11 @@ function bind(){
     $("seasonSearchQuery").value=ingredient+" レシピ";
   };
   $("seasonRegisterButton").onclick=()=>{
-    openRecipeForm(null);
+    if(!openNewRecipeForm())return;
     const ingredient=$("seasonIngredient").value.trim();
     if(ingredient){formStages[0].ingredients[0].name=ingredient;renderStages();}
   };
-  $("addRecipeButton").onclick=()=>openRecipeForm(null);
+  $("addRecipeButton").onclick=()=>openNewRecipeForm();
   $("editRecipeButton").onclick=()=>openRecipeForm(findRecipe(currentRecipeId));
   $("deleteRecipeButton").onclick=deleteCurrentRecipe;
   $("addCategoryButton").onclick=addCategory;
@@ -356,6 +448,9 @@ function bind(){
   $("addStageButton").onclick=addStage;
   $("exportButton").onclick=exportBackup;
   $("importInput").onchange=importBackup;
+  $("openPurchaseButton").onclick=openPurchaseModal;
+  $("purchaseBuyButton").onclick=requestPurchase;
+  $("purchaseRestoreButton").onclick=requestRestore;
   document.querySelectorAll("[data-close]").forEach(x=>x.onclick=()=>closeModal(x.dataset.close));
 }
 
@@ -373,6 +468,7 @@ function showView(name){
   $("headerTitle").textContent=name==="shopSettingsView"?"お店設定":titles[name]||"飲食店レシピノート";
   $("headerTitle").focus({preventScroll:true});
   window.scrollTo(0,0);
+  if(name==="settingsView")renderPurchaseSummary();
 }
 
 /* One persistent plain-text memo. Dates are presentation only; no history or snapshots. */
@@ -831,6 +927,8 @@ function compressImage(file,maxWidth=1000,quality=0.75){
 }
 async function saveRecipeForm(e){
   e.preventDefault();if(imageJobs)return;
+  const existingId=$("recipeId").value;
+  if(!existingId&&!canAddRecipe()){closeModal("recipeForm");openPurchaseModal();return;}
   const name=$("recipeName").value.trim();
   if(!name){$("recipeFormError").textContent="料理名を入力してください。";return;}
   const quantity=Number($("recipeYieldQuantity").value);
@@ -840,7 +938,6 @@ async function saveRecipeForm(e){
   const categoryId=$("recipeCategory").value;
   const stages=formStages.map(s=>({groupName:s.groupName.trim(),ingredients:s.ingredients.map(i=>({...parseIngredient(i),name:i.name.trim(),amount:ingredientAmount(i,1)})).filter(i=>i.name),instruction:s.instruction.trim(),images:[...s.images]})).filter(s=>s.groupName||s.ingredients.length||s.instruction||s.images.length);
   const data={name,categoryId,photo:formPhoto,attachments:[...formAttachments],sourceText:$("recipeSourceText").value,months:checkedValues("recipeMonths"),seasons:checkedValues("recipeSeasons"),yield:{quantity,unit},stages,cookedDate:$("recipeCookedDate").value,cookTime:$("recipeCookTime").value.trim(),memo:$("recipeMemo").value.trim()};
-  const existingId=$("recipeId").value;
   const session=formSession;
   imageJobs++;setImageBusy();
   await putImages([data.photo,...data.attachments,...data.stages.flatMap(s=>s.images)]);
