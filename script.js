@@ -313,6 +313,19 @@ function openAppStoreReview(){
   window.open("https://apps.apple.com/app/id"+APP_STORE_APP_ID+"?action=write-review","_blank","noopener,noreferrer");
 }
 
+/* Dev/testing-only: tap the version line 7× to toggle the unlock flag without a real purchase. Remove before the real App Store submission build. */
+let versionTapCount=0,versionTapTimer=null;
+function onVersionLabelTap(){
+  versionTapCount++;
+  clearTimeout(versionTapTimer);
+  versionTapTimer=setTimeout(()=>{versionTapCount=0;},1500);
+  if(versionTapCount<7)return;
+  versionTapCount=0;
+  savePurchaseStatus(!purchaseUnlocked);
+  renderPurchaseSummary();
+  alert(purchaseUnlocked?"テスト用に登録件数の上限を解除しました。":"テスト解除を元に戻しました（無料版の状態）。");
+}
+
 function formatNumber(n){
   const rounded=Math.round(n*100)/100;
   return Number.isInteger(rounded)?String(rounded):String(rounded);
@@ -419,6 +432,7 @@ function bind(){
   $("addRecipeCategory").onclick=addRecipeCategory;
   $("openSupport").onclick=()=>showView("supportView");
   $("rateAppButton").onclick=openAppStoreReview;
+  $("versionLabel").onclick=onVersionLabelTap;
   document.querySelectorAll("[data-import-recipe]").forEach(b=>b.onclick=()=>{if(!openNewRecipeForm())return;const target=b.dataset.importRecipe==="images"?$("recipeAttachmentsInput"):$("recipeSourceText");target.focus();target.scrollIntoView({block:"center"});});
   $("recipeSearch").oninput=renderRecipeList;
   $("clearRecipeFilters").onclick=()=>{selectedMonths=[];selectedSeasons=[];currentCategoryId=null;$("recipeSearch").value="";renderFilters();renderCategoryList();};
