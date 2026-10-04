@@ -1,6 +1,6 @@
 {
-  "name": "飲食店レシピノート",
-  "short_name": "飲食店レシピノート",
+  "name": "飲食店レシピ帳",
+  "short_name": "飲食店レシピ帳",
   "description": "飲食店のレシピを、もっと使いやすく",
   "start_url": "./index.html",
   "scope": "./",
@@ -9,7 +9,7 @@
   "theme_color": "#f7f5f0",
   "icons": [
     {
-      "src": "app-icon.png?v=1.5.1",
+      "src": "app-icon.png?v=1.5.3",
       "sizes": "1254x1254",
       "type": "image/png",
       "purpose": "any"

@@ -10,6 +10,9 @@ const PURCHASE_PRICE_LABEL="800円";
 let purchaseUnlocked=false;
 let purchaseBusy=false;
 
+/* Fill in once the app is live in App Store Connect (App Information → Apple ID, the numeric id in the app's App Store URL). */
+const APP_STORE_APP_ID="";
+
 const SERVING_MULT={"1人前":1,"5人前":5,"10人前":10,"1回分":1,"1.5回分":1.5,"2回分":2};
 const backTargets={categoryView:"homeView",recipeDetailView:"categoryView",categoryEditView:"categoryView",settingsView:"homeView",supportView:"settingsView",preparationView:"homeView",seasonView:"homeView"};
 let preparationDay="";
@@ -301,6 +304,15 @@ window.onPurchaseFailed=function(message){
   $("purchaseStatus").textContent=message||"購入処理を完了できませんでした。もう一度お試しください。";
 };
 
+/* Apple's guidance: a button the user explicitly tapped to review should open the App Store listing directly, not SKStoreReviewController (that ambient prompt is OS-throttled and may silently no-op). */
+function openAppStoreReview(){
+  if(!APP_STORE_APP_ID){
+    alert("このアプリはまだApp Storeに公開されていません。公開後にこちらから評価していただけます。");
+    return;
+  }
+  window.open("https://apps.apple.com/app/id"+APP_STORE_APP_ID+"?action=write-review","_blank","noopener,noreferrer");
+}
+
 function formatNumber(n){
   const rounded=Math.round(n*100)/100;
   return Number.isInteger(rounded)?String(rounded):String(rounded);
@@ -406,6 +418,7 @@ function bind(){
   $("manageCategories").onclick=()=>{backTargets.categoryEditView="settingsView";renderCategoryEditList();showView("categoryEditView");};
   $("addRecipeCategory").onclick=addRecipeCategory;
   $("openSupport").onclick=()=>showView("supportView");
+  $("rateAppButton").onclick=openAppStoreReview;
   document.querySelectorAll("[data-import-recipe]").forEach(b=>b.onclick=()=>{if(!openNewRecipeForm())return;const target=b.dataset.importRecipe==="images"?$("recipeAttachmentsInput"):$("recipeSourceText");target.focus();target.scrollIntoView({block:"center"});});
   $("recipeSearch").oninput=renderRecipeList;
   $("clearRecipeFilters").onclick=()=>{selectedMonths=[];selectedSeasons=[];currentCategoryId=null;$("recipeSearch").value="";renderFilters();renderCategoryList();};
@@ -464,8 +477,8 @@ function showView(name){
   $("appBrandIcon").classList.toggle("hidden",name!=="homeView");
   $("headerTagline").classList.toggle("hidden",name!=="homeView");
   document.body.classList.toggle("is-home",name==="homeView");
-  const titles={homeView:"飲食店レシピノート",categoryView:"レシピ一覧",recipeDetailView:(findRecipe(currentRecipeId)||{}).name||"",categoryEditView:"カテゴリー管理",settingsView:"設定",supportView:"使い方・サポート",preparationView:"次回の仕込み",seasonView:"季節の食材を検索"};
-  $("headerTitle").textContent=name==="shopSettingsView"?"お店設定":titles[name]||"飲食店レシピノート";
+  const titles={homeView:"飲食店レシピ帳",categoryView:"レシピ一覧",recipeDetailView:(findRecipe(currentRecipeId)||{}).name||"",categoryEditView:"カテゴリー管理",settingsView:"設定",supportView:"使い方・サポート",preparationView:"次回の仕込み",seasonView:"季節の食材を検索"};
+  $("headerTitle").textContent=name==="shopSettingsView"?"お店設定":titles[name]||"飲食店レシピ帳";
   $("headerTitle").focus({preventScroll:true});
   window.scrollTo(0,0);
   if(name==="settingsView")renderPurchaseSummary();
@@ -756,7 +769,7 @@ function exportBackup(){
   const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
-  a.download=`飲食店レシピノート_バックアップ_${new Date().toISOString().slice(0,10)}.json`;
+  a.download=`飲食店レシピ帳_バックアップ_${new Date().toISOString().slice(0,10)}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
