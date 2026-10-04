@@ -90,6 +90,7 @@ function migrateRecipes(x){
       if(!Array.isArray(s.ingredients))s.ingredients=[];
       if(typeof s.instruction!=="string")s.instruction="";
       if(typeof s.groupName!=="string")s.groupName="";
+      if(!Array.isArray(s.images))s.images=[];
     });
     delete r.ingredients;
     delete r.steps;
@@ -109,7 +110,7 @@ function save(){
 /* ---------- photo storage (IndexedDB) ---------- */
 function rememberImage(key,url){imageCache.set(key,url);imageKeys.set(url,key);}
 function isInlineImage(v){return typeof v==="string"&&v.startsWith("data:image/");}
-function recipeImages(s){return s.recipes.flatMap(r=>[r.photo,...(Array.isArray(r.attachments)?r.attachments:[])]).filter(Boolean);}
+function recipeImages(s){return s.recipes.flatMap(r=>[r.photo,...(Array.isArray(r.attachments)?r.attachments:[]),...(r.stages||[]).flatMap(stage=>Array.isArray(stage.images)?stage.images:[])]).filter(Boolean);}
 function serializeState(s){
   return JSON.stringify(s,(k,v)=>typeof v==="string"&&imageKeys.has(v)?IMAGE_REF+imageKeys.get(v):v);
 }
@@ -125,6 +126,7 @@ function resolveImageRefs(x){
   x.recipes.forEach(r=>{
     if(r.photo)r.photo=resolve(r.photo);
     if(Array.isArray(r.attachments))r.attachments=r.attachments.map(resolve);
+    (r.stages||[]).forEach(stage=>{if(Array.isArray(stage.images))stage.images=stage.images.map(resolve);});
   });
   return missing;
 }
@@ -490,7 +492,8 @@ function renderDetailStages(r){
     }).join("")}</ul>`:"";
     const steps=(stage.instruction||"").split("\n").map(s=>s.trim()).filter(Boolean);
     const stepsHtml=steps.length?`<h4>作り方</h4><ol class="steps-list">${steps.map(s=>`<li>${esc(s)}</li>`).join("")}</ol>`:"";
-    return `<div class="detail-stage">${nameHtml}${ingHtml}${stepsHtml}</div>`;
+    const imagesHtml=stage.images?.length?`<div class="attachment-gallery detail-stage-images">${stage.images.map((src,i)=>`<img src="${esc(src)}" alt="${esc(stage.groupName||"工程")}の仕込み画像${i+1}">`).join("")}</div>`:"";
+    return `<div class="detail-stage">${nameHtml}${ingHtml}${stepsHtml}${imagesHtml}</div>`;
   }).join("");
 }
 function recipeExportData(){
@@ -517,7 +520,7 @@ function recipeShareText(data){
   }
   if(r.memo)lines.push("","【メモ】",r.memo);
   if(r.sourceText)lines.push("","【取り込んだレシピ】",r.sourceText);
-  if(r.attachments?.length)lines.push("","※ 添付画像は文章の共有には含まれません。PDF保存で確認できます。");
+  if(r.attachments?.length||r.stages?.some(s=>s.images?.length))lines.push("","※ 添付画像は文章の共有には含まれません。PDF保存で確認できます。");
   return lines.join("\n");
 }
 async function shareCurrentRecipe(){
@@ -557,6 +560,7 @@ function previewRecipePdf(){
     html+='<section><h2>'+esc(stage.groupName||"工程 "+(index+1))+'</h2>';
     if(stage.ingredients?.length)html+='<h3>材料</h3><ul>'+stage.ingredients.map(i=>'<li>'+esc([i.name,ingredientAmount(i,ratio)].filter(Boolean).join("　"))+'</li>').join("")+'</ul>';
     if(stage.instruction)html+='<h3>作り方</h3><p class="print-text">'+esc(stage.instruction)+'</p>';
+    if(stage.images?.length)html+=stage.images.map(photo).join("");
     html+='</section>';
   }
   if(r.memo)html+='<section><h2>メモ</h2><p class="print-text">'+esc(r.memo)+'</p></section>';
@@ -699,6 +703,9 @@ function renderStages(){
       <button type="button" class="secondary-button small-button add-ingredient-row">＋ 材料を追加</button>
       <label>この工程でやること</label>
       <textarea class="stage-instruction-input" rows="3" placeholder="例：鍋にすべての材料を入れて弱火で3分煮詰める">${esc(stage.instruction)}</textarea>
+      <label>仕込み画像（任意・複数選択可）</label>
+      <div class="stage-images-preview attachment-gallery" data-si="${si}"></div>
+      <input type="file" class="stage-images-input" accept="image/*" multiple aria-label="仕込み画像を追加" ${imageJobs?"disabled":""}>
     </div>`).join("");
 
   formStages.forEach((stage,si)=>{
@@ -708,8 +715,25 @@ function renderStages(){
     if(removeBtn)removeBtn.onclick=()=>removeStage(si);
     block.querySelector(".stage-instruction-input").oninput=e=>{stage.instruction=e.target.value;};
     block.querySelector(".add-ingredient-row").onclick=()=>addIngredientRowToStage(si);
+    block.querySelector(".stage-images-input").onchange=e=>onStageImagesChange(stage,e);
     renderStageIngredientRows(si);
+    renderStageImages(stage,si);
   });
+}
+function renderStageImages(stage,si){
+  const container=$("stagesContainer").querySelector(`.stage-images-preview[data-si="${si}"]`);
+  if(!container)return;
+  container.innerHTML=stage.images.map((src,i)=>'<div><img src="'+esc(src)+'" alt="仕込み画像 '+(i+1)+'"><button type="button" class="secondary-button" data-remove="'+i+'">画像 '+(i+1)+' を削除</button></div>').join("");
+  container.querySelectorAll("button").forEach(b=>b.onclick=()=>{stage.images.splice(Number(b.dataset.remove),1);renderStageImages(stage,si);});
+}
+async function onStageImagesChange(stage,e){
+  const files=[...e.target.files],session=formSession;
+  if(!files.length)return;
+  imageJobs++;setImageBusy();
+  try{
+    for(const file of files){const data=await compressImage(file,1800,0.88);if(session!==formSession)return;stage.images.push(data);renderStageImages(stage,formStages.indexOf(stage));}
+  }catch{if(session===formSession)$("recipeFormError").textContent="一部の画像を読み込めませんでした。追加済みの画像を確認し、JPEG・PNGなどで追加し直してください。";}
+  finally{if(session===formSession){imageJobs--;setImageBusy();e.target.value="";}}
 }
 function renderStageIngredientRows(si){
   const {names}=ingredientHistory(),stage=formStages[si];
@@ -733,7 +757,7 @@ function addIngredientRowToStage(si){
   rows[rows.length-1]?.focus();
 }
 function addStage(){
-  formStages.push({groupName:"",ingredients:[{name:"",amount:""}],instruction:""});
+  formStages.push({groupName:"",ingredients:[{name:"",amount:""}],instruction:"",images:[]});
   renderStages();
 }
 function removeStage(si){
@@ -762,7 +786,7 @@ function openRecipeForm(recipe){
   $("recipeSourceText").value=recipe?.sourceText||"";
   formAttachments=[...(recipe?.attachments||[])];
   formSession++;imageJobs=0;setImageBusy();renderAttachments();
-  formStages=recipe?.stages?.length?recipe.stages.map(s=>({groupName:s.groupName||"",ingredients:(s.ingredients||[]).map(i=>({...i})),instruction:s.instruction||""})):[{groupName:"",ingredients:[{name:"",amount:""}],instruction:""}];
+  formStages=recipe?.stages?.length?recipe.stages.map(s=>({groupName:s.groupName||"",ingredients:(s.ingredients||[]).map(i=>({...i})),instruction:s.instruction||"",images:[...(s.images||[])]})):[{groupName:"",ingredients:[{name:"",amount:""}],instruction:"",images:[]}];
   renderStages();
   $("recipeCookedDate").value=recipe?.cookedDate||"";
   $("recipeCookTime").value=recipe?.cookTime||"";
@@ -814,12 +838,12 @@ async function saveRecipeForm(e){
   const unit=$("recipeYieldUnit").value==="その他"?$("recipeYieldCustom").value.trim():$("recipeYieldUnit").value;
   if(!unit){$("recipeFormError").textContent="単位を入力してください。";$("recipeYieldCustom").focus();return;}
   const categoryId=$("recipeCategory").value;
-  const stages=formStages.map(s=>({groupName:s.groupName.trim(),ingredients:s.ingredients.map(i=>({...parseIngredient(i),name:i.name.trim(),amount:ingredientAmount(i,1)})).filter(i=>i.name),instruction:s.instruction.trim()})).filter(s=>s.groupName||s.ingredients.length||s.instruction);
+  const stages=formStages.map(s=>({groupName:s.groupName.trim(),ingredients:s.ingredients.map(i=>({...parseIngredient(i),name:i.name.trim(),amount:ingredientAmount(i,1)})).filter(i=>i.name),instruction:s.instruction.trim(),images:[...s.images]})).filter(s=>s.groupName||s.ingredients.length||s.instruction||s.images.length);
   const data={name,categoryId,photo:formPhoto,attachments:[...formAttachments],sourceText:$("recipeSourceText").value,months:checkedValues("recipeMonths"),seasons:checkedValues("recipeSeasons"),yield:{quantity,unit},stages,cookedDate:$("recipeCookedDate").value,cookTime:$("recipeCookTime").value.trim(),memo:$("recipeMemo").value.trim()};
   const existingId=$("recipeId").value;
   const session=formSession;
   imageJobs++;setImageBusy();
-  await putImages([data.photo,...data.attachments]);
+  await putImages([data.photo,...data.attachments,...data.stages.flatMap(s=>s.images)]);
   if(session!==formSession)return;
   imageJobs--;setImageBusy();
   const next=JSON.parse(JSON.stringify(state));
@@ -982,6 +1006,7 @@ function setImageBusy(){
   $("recipeAttachmentsInput").disabled=imageJobs>0;
   $("recipePhotoInput").disabled=imageJobs>0;
   $("removePhotoButton").disabled=imageJobs>0;
+  $("stagesContainer").querySelectorAll(".stage-images-input").forEach(i=>i.disabled=imageJobs>0);
   $("attachmentStatus").textContent=imageJobs?"画像を読み込んでいます…":"画像と文章はそのまま保存されます。自動文字起こしは行いません。";
 }
 async function onAttachmentsChange(e){
