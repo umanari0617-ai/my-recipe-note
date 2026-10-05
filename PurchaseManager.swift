@@ -8,8 +8,8 @@ final class PurchaseManager: ObservableObject {
     var onRestored: ((Bool) -> Void)?
     var onFailed: ((String) -> Void)?
 
+    /// checkCurrentEntitlement() is called by the web view once the page has loaded, so its callback reaches the JS.
     init() {
-        Task { await checkCurrentEntitlement() }
         Task { await listenForTransactionUpdates() }
     }
 
