@@ -1,0 +1,38 @@
+{
+  "identifier" : "5E1D2C3B",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "800",
+      "familyShareable" : false,
+      "internalID" : "6740000001",
+      "localizations" : [
+        {
+          "description" : "レシピの登録件数の上限（20件）を解除します。",
+          "displayName" : "登録件数の上限解除",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "com.umanari0617.RecipeBook.premium_unlock",
+      "referenceName" : "プレミアム（上限解除）",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "ja",
+    "_storefront" : "JPN",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
