@@ -11,7 +11,7 @@ let purchaseUnlocked=false;
 let purchaseBusy=false;
 
 /* Fill in once the app is live in App Store Connect (App Information → Apple ID, the numeric id in the app's App Store URL). */
-const APP_STORE_APP_ID="";
+const APP_STORE_APP_ID="6817755466";
 
 const SERVING_MULT={"1人前":1,"5人前":5,"10人前":10,"1回分":1,"1.5回分":1.5,"2回分":2};
 const backTargets={categoryView:"homeView",recipeDetailView:"categoryView",categoryEditView:"categoryView",settingsView:"homeView",supportView:"settingsView",preparationView:"homeView",seasonView:"homeView"};

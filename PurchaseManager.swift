@@ -3,7 +3,7 @@ import StoreKit
 
 @MainActor
 final class PurchaseManager: ObservableObject {
-    static let productID = "com.umanari0617.RecipeBook.premium_unlock"
+    static let productID = "recipe_unlimited"
 
     var onUnlocked: (() -> Void)?
     var onRestored: ((Bool) -> Void)?

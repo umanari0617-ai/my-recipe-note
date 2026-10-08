@@ -15,7 +15,7 @@
           "locale" : "ja"
         }
       ],
-      "productID" : "com.umanari0617.RecipeBook.premium_unlock",
+      "productID" : "recipe_unlimited",
       "referenceName" : "プレミアム（上限解除）",
       "type" : "NonConsumable"
     }
